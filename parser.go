@@ -12,18 +12,19 @@ type ServingConfig struct {
 	GpuMemoryUtilization float64
 	NumGpus              int
 	MaxNumSeqs           int
-	DtypeBytes           int // 2=fp16/bf16, 1=fp8
+	DtypeBytes           int     // 2=fp16/bf16, 1=fp8
+	GpuVramGB            float64 // varsayılan 80.0 (A100/H100)
 }
 
 type ModelSpec struct {
-	ID           string
-	ParamsB      float64 // loaded weights (total experts for MoE)
-	ActiveB      float64
-	Layers       int
-	Hidden       int
-	KVHeads      int
-	HeadDim      int
-	MoE          bool
+	ID      string
+	ParamsB float64
+	ActiveB float64
+	Layers  int
+	Hidden  int
+	KVHeads int
+	HeadDim int
+	MoE     bool
 }
 
 type Analysis struct {
@@ -75,7 +76,8 @@ func pickParallelism(numGPUs, layers int, weightsGB, kvGB, gpuGB, util float64) 
 	}
 	usable := gpuGB * util
 
-	for tp = 1; tp <= numGPUs; tp *= 2 {
+	// TP'yi büyükten küçüğe dene (önce TP'yi şişir, latency için)
+	for tp = numGPUs; tp >= 1; tp /= 2 {
 		if numGPUs%tp != 0 {
 			continue
 		}
@@ -86,6 +88,9 @@ func pickParallelism(numGPUs, layers int, weightsGB, kvGB, gpuGB, util float64) 
 		perGPU := (weightsGB / float64(tp*pp)) + (kvGB / float64(tp))
 		if perGPU <= usable {
 			return tp, pp
+		}
+		if tp == 1 {
+			break
 		}
 	}
 	return numGPUs, 1
@@ -107,6 +112,9 @@ func Analyze(cfg ServingConfig) Analysis {
 	if cfg.DtypeBytes < 1 {
 		cfg.DtypeBytes = 2
 	}
+	if cfg.GpuVramGB <= 0 {
+		cfg.GpuVramGB = 80.0
+	}
 
 	spec := ResolveModel(cfg.ModelName)
 	weightGB := spec.ParamsB * float64(cfg.DtypeBytes)
@@ -116,12 +124,11 @@ func Analyze(cfg ServingConfig) Analysis {
 	kvGB := kvBytes / (1024 * 1024 * 1024)
 	actGB := 2.0
 
-	const gpuGB = 80.0
-	tp, pp := pickParallelism(cfg.NumGpus, spec.Layers, weightGB, kvGB, gpuGB, cfg.GpuMemoryUtilization)
+	tp, pp := pickParallelism(cfg.NumGpus, spec.Layers, weightGB, kvGB, cfg.GpuVramGB, cfg.GpuMemoryUtilization)
 
 	total := weightGB + kvGB + actGB
 	perGPU := (weightGB / float64(tp*pp)) + (kvGB / float64(tp)) + actGB
-	usable := gpuGB * cfg.GpuMemoryUtilization
+	usable := cfg.GpuVramGB * cfg.GpuMemoryUtilization
 	oom := perGPU > usable
 
 	a := Analysis{
