@@ -1,10 +1,49 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"strconv"
 )
+
+type APIResponse struct {
+	ModelName      string  `json:"model_name"`
+	Engine         string  `json:"engine"`
+	VramGB         float64 `json:"vram_gb"`
+	MonthlyCostUSD float64 `json:"monthly_cost_usd"`
+	Command        string  `json:"command"`
+}
+
+func handleAPI(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	
+	modelName := r.URL.Query().Get("model")
+	if modelName == "" {
+		modelName = "meta-llama/Llama-3-70b-Instruct"
+	}
+	
+	cfg := ServingConfig{
+		ModelName:            modelName,
+		MaxModelLen:          32768,
+		GpuMemoryUtilization: 0.90,
+		NumGpus:              4,
+	}
+
+	vram, _ := CalculateVRAMAndCost(cfg)
+	monthlyCost := float64(4) * 2.15 * 24 * 30
+	cmd := fmt.Sprintf("vllm serve %s --tensor-parallel-size 4", modelName)
+
+	resp := APIResponse{
+		ModelName:      modelName,
+		Engine:         "vllm",
+		VramGB:         vram,
+		MonthlyCostUSD: monthlyCost,
+		Command:        cmd,
+	}
+
+	json.NewEncoder(w).Encode(resp)
+}
 
 func handleConfig(w http.ResponseWriter, r *http.Request) {
 	modelName := "meta-llama/Llama-3-70b-Instruct"
@@ -158,39 +197,14 @@ spec:
 			<meta charset="UTF-8">
 			<title>%s</title>
 			<style>
-				body {
-					font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-					background-color: #090d16;
-					color: #e2e8f0;
-					margin: 0;
-					padding: 0;
-				}
-				.navbar {
-					background: #111827;
-					border-bottom: 1px solid #1f2937;
-					padding: 15px 40px;
-					display: flex;
-					justify-content: space-between;
-					align-items: center;
-				}
+				body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background-color: #090d16; color: #e2e8f0; margin: 0; padding: 0; }
+				.navbar { background: #111827; border-bottom: 1px solid #1f2937; padding: 15px 40px; display: flex; justify-content: space-between; align-items: center; }
 				.navbar .logo { color: #38bdf8; font-weight: bold; font-size: 18px; text-decoration: none; }
 				.navbar .nav-links { display: flex; gap: 20px; }
-				.navbar .nav-links a { color: #94a3b8; text-decoration: none; font-size: 14px; font-weight: 500; transition: color 0.2s; }
+				.navbar .nav-links a { color: #94a3b8; text-decoration: none; font-size: 14px; font-weight: 500; }
 				.navbar .nav-links a:hover { color: #38bdf8; }
-				.main-wrapper {
-					display: flex;
-					justify-content: center;
-					padding: 40px;
-				}
-				.container {
-					width: 100%%;
-					max-width: 850px;
-					background: #111827;
-					border: 1px solid #1f2937;
-					padding: 30px;
-					border-radius: 12px;
-					box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.3);
-				}
+				.main-wrapper { display: flex; justify-content: center; padding: 40px; }
+				.container { width: 100%%; max-width: 850px; background: #111827; border: 1px solid #1f2937; padding: 30px; border-radius: 12px; box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.3); }
 				h1 { color: #38bdf8; font-size: 24px; margin-top: 0; }
 				.badge { background: #0369a1; color: #e0f2fe; padding: 4px 10px; border-radius: 20px; font-size: 12px; font-weight: bold; }
 				.card { background: #1f2937; border-left: 4px solid #38bdf8; padding: 15px; margin: 20px 0; border-radius: 4px; }
@@ -200,7 +214,7 @@ spec:
 				p { color: #94a3b8; }
 				label { display: block; margin-top: 12px; color: #cbd5e1; font-weight: 500; font-size: 14px; }
 				input, select { width: 100%%; padding: 10px; margin-top: 5px; background: #030712; border: 1px solid #374151; color: #fff; border-radius: 6px; box-sizing: border-box; }
-				button { margin-top: 20px; background: #0284c7; color: white; border: none; padding: 12px 20px; font-size: 16px; font-weight: bold; border-radius: 6px; cursor: pointer; width: 100%%; transition: background 0.2s; }
+				button { margin-top: 20px; background: #0284c7; color: white; border: none; padding: 12px 20px; font-size: 16px; font-weight: bold; border-radius: 6px; cursor: pointer; width: 100%%; }
 				button:hover { background: #0369a1; }
 			</style>
 		</head>
@@ -298,6 +312,7 @@ spec:
 
 func StartServer() {
 	http.HandleFunc("/", handleConfig)
-	fmt.Println("Pusula Serve SaaS Navbar Sürümü başlatılıyor...")
+	http.HandleFunc("/api/v1/optimize", handleAPI)
+	fmt.Println("Pusula Serve REST API ve Web Sunucusu başlatılıyor...")
 	http.ListenAndServe(":8080", nil)
 }
