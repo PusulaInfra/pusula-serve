@@ -15,7 +15,7 @@ func AnalyzeConfig(cfg ServingConfig) {
 	fmt.Printf("GPU Bellek Kullanimi: %.2f\n", cfg.GpuMemoryUtilization)
 	
 	if cfg.MaxModelLen > 32768 {
-		fmt.⚠️("UYARI: Yuksek context window (KV Cache) GPU faturasini ve bellek doluluk oranini riskli seviyeye tasiyabilir!")
+		fmt.Println("UYARI: Yuksek context window KV Cache maliyetini patlatabilir!")
 	} else {
 		fmt.Println("Konfigurasyon guvenli sinirlarda.")
 	}
