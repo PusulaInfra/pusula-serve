@@ -12,6 +12,7 @@ func handleConfig(w http.ResponseWriter, r *http.Request) {
 	maxModelLen := 32768
 	numGpus := 4
 	engine := "vllm"
+	lang := "tr" // Varsayılan dil Türkçe
 
 	// Kullanıcı formdan yeni değerler gönderdiyse alıyoruz
 	if r.Method == http.MethodPost {
@@ -32,6 +33,9 @@ func handleConfig(w http.ResponseWriter, r *http.Request) {
 		if e := r.FormValue("engine"); e != "" {
 			engine = e
 		}
+		if lg := r.FormValue("lang"); lg != "" {
+			lang = lg
+		}
 	}
 
 	// Hesaplama motorunu çalıştırıyoruz
@@ -44,7 +48,7 @@ func handleConfig(w http.ResponseWriter, r *http.Request) {
 
 	vram, recommendation := CalculateVRAMAndCost(cfg)
 	
-	// Seçilen motora göre komut şablonu üretiyoruz
+	// Seçilen motora göre komut üretimi
 	var command string
 	if engine == "sglang" {
 		command = fmt.Sprintf("python3 -m sglang.launch_server --model-path %s --context-length %d --tp-size %d --port 30000", modelName, maxModelLen, numGpus)
@@ -52,12 +56,45 @@ func handleConfig(w http.ResponseWriter, r *http.Request) {
 		command = fmt.Sprintf("vllm serve %s --max-model-len %d --tensor-parallel-size %d --gpu-memory-utilization 0.90", modelName, maxModelLen, numGpus)
 	}
 
+	// Metinlerin sözlüğü (TR / EN)
+	var tTitle, tBadge, tDesc, tLangLbl, tEngLbl, tModelLbl, tLenLbl, tGpuLbl, tBtn, tCard1Title, tVramText, tRecText, tCard2Title string
+
+	if lang == "en" {
+		tTitle = "Pusula Serve - LLM Serving Copilot"
+		tBadge = "Multi-Engine & Multi-Language Active"
+		tDesc = "Configure your serving engine, parameters, and get optimized commands instantly."
+		tLangLbl = "Language / Dil:"
+		tEngLbl = "Serving Engine:"
+		tModelLbl = "Model Name (HuggingFace Repo):"
+		tLenLbl = "Max Model Length (Context Window - Tokens):"
+		tGpuLbl = "GPU Count (Tensor Parallelism):"
+		tBtn = "Optimize & Generate Command"
+		tCard1Title = "Hardware & Memory Analysis:"
+		tVramText = "Estimated VRAM Usage:"
+		tRecText = "Cluster Recommendation:"
+		tCard2Title = "Generated Startup Command"
+	} else {
+		tTitle = "Pusula Serve - LLM Serving Copilot"
+		tBadge = "Multi-Engine & Çok Dilli Destek Aktif"
+		tDesc = "Serving motorunu seçin, parametreleri yapılandırın ve optimize komutu anında alın."
+		tLangLbl = "Dil / Language:"
+		tEngLbl = "Serving Motoru:"
+		tModelLbl = "Model Adı (HuggingFace Repo):"
+		tLenLbl = "Max Model Uzunluğu (Context Window - Token):"
+		tGpuLbl = "GPU Sayısı (Tensor Parallelism):"
+		tBtn = "Optimize Et ve Komut Üret"
+		tCard1Title = "Donanım & Bellek Analizi:"
+		tVramText = "Tahmini VRAM Tüketimi:"
+		tRecText = "Cluster Tavsiyesi:"
+		tCard2Title = "Üretilen Başlatma Komutu"
+	}
+
 	html := fmt.Sprintf(`
 		<!DOCTYPE html>
-		<html lang="tr">
+		<html lang="%s">
 		<head>
 			<meta charset="UTF-8">
-			<title>Pusula Serve - LLM Serving Copilot</title>
+			<title>%s</title>
 			<style>
 				body {
 					font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
@@ -91,59 +128,68 @@ func handleConfig(w http.ResponseWriter, r *http.Request) {
 		</head>
 		<body>
 			<div class="container">
-				<span class="badge">Multi-Engine (vLLM & SGLang) Aktif</span>
+				<span class="badge">%s</span>
 				<h1>Pusula Serve Copilot</h1>
-				<p>Serving motorunu seçin, parametreleri yapılandırın ve optimize komutu anında alın.</p>
+				<p>%s</p>
 				
 				<form method="POST">
-					<label>Serving Motoru:</label>
+					<label>%s</label>
+					<select name="lang" onchange="this.form.submit()">
+						<option value="tr" %s>Türkçe (TR)</option>
+						<option value="en" %s>English (EN)</option>
+					</select>
+
+					<label>%s</label>
 					<select name="engine">
 						<option value="vllm" %s>vLLM (High-Throughput)</option>
 						<option value="sglang" %s>SGLang (RadixAttention & Low-Latency)</option>
 					</select>
 
-					<label>Model Adı (HuggingFace Repo):</label>
+					<label>%s</label>
 					<input type="text" name="modelName" value="%s">
 
-					<label>Max Model Uzunluğu (Context Window - Token):</label>
+					<label>%s</label>
 					<input type="number" name="maxModelLen" value="%d">
 
-					<label>GPU Sayısı (Tensor Parallelism):</label>
+					<label>%s</label>
 					<input type="number" name="numGpus" value="%d">
 
-					<button type="submit">Optimize Et ve Komut Üret</button>
+					<button type="submit">%s</button>
 				</form>
 
 				<div class="card">
-					<h3>Donanım & Bellek Analizi:</h3>
-					<p class="metric">Tahmini VRAM Tüketimi: %.2f GB</p>
-					<p>Cluster Tavsiyesi: %s</p>
+					<h3>%s</h3>
+					<p class="metric">%s %.2f GB</p>
+					<p>%s %s</p>
 				</div>
 
 				<div class="card">
-					<h3>Üretilen Başlatma Komutu (%s):</h3>
+					<h3>%s (%s):</h3>
 					<pre>%s</pre>
 				</div>
 			</div>
 		</body>
 		</html>
-	`, func() string {
-		if engine == "vllm" {
-			return "selected"
-		}
-		return ""
-	}(), func() string {
-		if engine == "sglang" {
-			return "selected"
-		}
-		return ""
-	}(), modelName, maxModelLen, numGpus, vram, recommendation, engine, command)
+	`, 
+	lang, tTitle, tBadge, tDesc, 
+	tLangLbl, 
+	func() string { if lang == "tr" { return "selected" } ; return "" }(),
+	func() string { if lang == "en" { return "selected" } ; return "" }(),
+	tEngLbl,
+	func() string { if engine == "vllm" { return "selected" } ; return "" }(),
+	func() string { if engine == "sglang" { return "selected" } ; return "" }(),
+	tModelLbl, modelName,
+	tLenLbl, maxModelLen,
+	tGpuLbl, numGpus,
+	tBtn,
+	tCard1Title, tVramText, vram, tRecText, recommendation,
+	tCard2Title, engine, command)
 
 	fmt.Fprint(w, html)
 }
 
 func StartServer() {
 	http.HandleFunc("/", handleConfig)
-	fmt.Println("Pusula Serve Multi-Engine sunucusu baslatiliyor...")
+	fmt.Println("Pusula Serve Çok Dilli web sunucusu baslatiliyor...")
 	http.ListenAndServe(":8080", nil)
 }
