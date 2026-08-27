@@ -9,3 +9,4 @@ COPY --from=build /pusula-serve /usr/local/bin/pusula-serve
 EXPOSE 8080
 USER nobody
 CMD ["pusula-serve"]
+
