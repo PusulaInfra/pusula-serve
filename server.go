@@ -73,6 +73,11 @@ func handleConfig(w http.ResponseWriter, r *http.Request) {
 		ppSize = 2
 	}
 
+	// Bulut Maliyet Hesaplama Simülasyonu (GPU başına ortalama saatlik $2.15 baz alınıyor)
+	hourlyCostPerGpu := 2.15
+	totalHourlyCost := float64(numGpus) * hourlyCostPerGpu
+	monthlyCost := totalHourlyCost * 24 * 30
+
 	// Komut üretimi
 	var command, k8sYaml string
 	if engine == "sglang" {
@@ -107,38 +112,40 @@ spec:
             nvidia.com/gpu: "%d"`, engine, modelName, maxModelLen, tpSize, numGpus)
 
 	// Çok dilli sözlük
-	var tTitle, tBadge, tDesc, tLangLbl, tEngLbl, tPresetLbl, tModelLbl, tLenLbl, tGpuLbl, tBtn, tCard1Title, tVramText, tRecText, tCard2Title, tCard3Title string
+	var tTitle, tBadge, tDesc, tLangLbl, tEngLbl, tPresetLbl, tModelLbl, tLenLbl, tGpuLbl, tBtn, tCard1Title, tVramText, tRecText, tCostTitle, tCard2Title, tCard3Title string
 
 	if lang == "en" {
-		tTitle = "Pusula Serve - Enterprise LLM Copilot"
-		tBadge = "Enterprise Edition Active (Presets & K8s)"
-		tDesc = "Select popular LLM architectures, optimize multi-GPU clusters, and generate deployment manifests instantly."
+		tTitle = "Pusula Serve - Enterprise LLM SaaS Platform"
+		tBadge = "Elite Edition Active (Cost Calculator & K8s)"
+		tDesc = "Simulate multi-GPU cluster economics, optimize deployment topology, and export production-ready manifests."
 		tLangLbl = "Language / Dil:"
 		tEngLbl = "Serving Engine:"
 		tPresetLbl = "Model Preset:"
 		tModelLbl = "Custom Model Name (HuggingFace):"
 		tLenLbl = "Context Window (Tokens):"
 		tGpuLbl = "Total GPU Count:"
-		tBtn = "Optimize & Generate Enterprise Config"
+		tBtn = "Run Full Enterprise Analysis"
 		tCard1Title = "Hardware & Cluster Intelligence:"
 		tVramText = "Estimated VRAM Consumption:"
 		tRecText = "Optimal Cluster Topology:"
+		tCostTitle = "Cloud Infrastructure Cost Estimation:"
 		tCard2Title = "Generated Serving Command"
 		tCard3Title = "Kubernetes (K8s) Deployment Manifest"
 	} else {
-		tTitle = "Pusula Serve - Kurumsal LLM Copilot"
-		tBadge = "Kurumsal Sürüm Aktif (Hazır Modeller & K8s)"
-		tDesc = "Popüler LLM mimarilerini seçin, cluster dağılımını optimize edin ve anında üretim komutları üretin."
+		tTitle = "Pusula Serve - Kurumsal LLM SaaS Platformu"
+		tBadge = "Elite Sürüm Aktif (Maliyet Hesaplayıcı & K8s)"
+		tDesc = "Çoklu GPU cluster ekonomisini simüle edin, dağılım topolojisini optimize edin ve üretime hazır manifestolar üretin."
 		tLangLbl = "Dil / Language:"
 		tEngLbl = "Serving Motoru:"
 		tPresetLbl = "Hazır Model Seçimi (Preset):"
 		tModelLbl = "Özel Model Adı (HuggingFace):"
 		tLenLbl = "Context Window (Token):"
 		tGpuLbl = "Toplam GPU Sayısı:"
-		tBtn = "Optimize Et ve Kurumsal Konfigürasyon Üret"
+		tBtn = "Tam Kurumsal Analizi Çalıştır"
 		tCard1Title = "Donanım & Cluster Zekası:"
 		tVramText = "Tahmini VRAM Tüketimi:"
 		tRecText = "Önerilen Cluster Topolojisi:"
+		tCostTitle = "Bulut Altyapı Maliyet Tahmini:"
 		tCard2Title = "Üretilen Başlatma Komutu"
 		tCard3Title = "Kubernetes (K8s) Deployment Manifestosu"
 	}
@@ -172,6 +179,7 @@ spec:
 				.badge { background: #0369a1; color: #e0f2fe; padding: 4px 10px; border-radius: 20px; font-size: 12px; font-weight: bold; }
 				.card { background: #1f2937; border-left: 4px solid #38bdf8; padding: 15px; margin: 20px 0; border-radius: 4px; }
 				.metric { font-size: 18px; color: #34d399; font-weight: bold; }
+				.cost { font-size: 18px; color: #f59e0b; font-weight: bold; }
 				pre { background: #030712; padding: 15px; border-radius: 6px; color: #38bdf8; overflow-x: auto; font-family: monospace; font-size: 13px; }
 				p { color: #94a3b8; }
 				label { display: block; margin-top: 12px; color: #cbd5e1; font-weight: 500; font-size: 14px; }
@@ -183,7 +191,7 @@ spec:
 		<body>
 			<div class="container">
 				<span class="badge">%s</span>
-				<h1>Pusula Serve Enterprise</h1>
+				<h1>Pusula Serve Elite SaaS</h1>
 				<p>%s</p>
 				
 				<form method="POST">
@@ -226,6 +234,12 @@ spec:
 					<p>%s (TP: %d, PP: %d) — %s</p>
 				</div>
 
+				<div class="card" style="border-left-color: #f59e0b;">
+					<h3 style="color: #fbbf24;">%s</h3>
+					<p class="cost">Saatlik Tahmini Maliyet: $%.2f / saat</p>
+					<p class="cost">Aylık Tahmini Bulut Maliyeti (7/24): $%.2f / ay (%d x GPU)</p>
+				</div>
+
 				<div class="card">
 					<h3>%s (%s):</h3>
 					<pre>%s</pre>
@@ -257,6 +271,7 @@ spec:
 	tGpuLbl, numGpus,
 	tBtn,
 	tCard1Title, tVramText, vram, tRecText, tpSize, ppSize, recommendation,
+	tCostTitle, totalHourlyCost, monthlyCost, numGpus,
 	tCard2Title, engine, command,
 	tCard3Title, k8sYaml)
 
@@ -265,6 +280,6 @@ spec:
 
 func StartServer() {
 	http.HandleFunc("/", handleConfig)
-	fmt.Println("Pusula Serve Kurumsal Sürüm başlatılıyor...")
+	fmt.Println("Pusula Serve Elite SaaS Sürümü başlatılıyor...")
 	http.ListenAndServe(":8080", nil)
 }
