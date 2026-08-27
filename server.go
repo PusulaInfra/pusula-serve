@@ -49,7 +49,7 @@ func buildK8s(engine, model string, cfg ServingConfig, a Analysis) string {
 	image := "vllm/vllm-openai:v0.8.5"
 	containerCmd := fmt.Sprintf(`["vllm","serve","%s","--max-model-len","%d","--tensor-parallel-size","%d"]`, model, cfg.MaxModelLen, a.TP)
 	if engine == "sglang" {
-		image = "lmsysorg/sglang:v0.4.3"
+		image = "lmsysorg/sglang:v0.4.5"
 		containerCmd = fmt.Sprintf(`["python3","-m","sglang.launch_server","--model-path","%s","--tp-size","%d"]`, model, a.TP)
 	}
 	return fmt.Sprintf(`apiVersion: apps/v1
@@ -91,25 +91,28 @@ func handleAPI(w http.ResponseWriter, r *http.Request) {
 	if engine == "" {
 		engine = "vllm"
 	}
-	dtype := queryInt(r, "dtype_bytes", 2)
 	cfg := ServingConfig{
 		ModelName:            modelName,
 		MaxModelLen:          queryInt(r, "max_model_len", 32768),
 		NumGpus:              queryInt(r, "num_gpus", 4),
 		MaxNumSeqs:           queryInt(r, "max_num_seqs", 16),
 		GpuMemoryUtilization: 0.90,
-		DtypeBytes:           dtype,
-		GpuVramGB:            80.0,
+		DtypeBytes:           2,
 	}
 	a := Analyze(cfg)
 	hourly := 2.15 * float64(cfg.NumGpus)
-	cmd := buildCommand(engine, modelName, cfg, a)
 	json.NewEncoder(w).Encode(APIResponse{
-		ModelName: modelName, Engine: engine,
-		WeightGB: a.WeightGB, KVGB: a.KVGB, VramGB: a.TotalGB, PerGPUGB: a.PerGPUGB,
-		TP: a.TP, PP: a.PP, OOM: a.OOM,
+		ModelName:      modelName,
+		Engine:         engine,
+		WeightGB:       a.WeightGB,
+		KVGB:           a.KVGB,
+		VramGB:         a.TotalGB,
+		PerGPUGB:       a.PerGPUGB,
+		TP:             a.TP,
+		PP:             a.PP,
+		OOM:            a.OOM,
 		MonthlyCostUSD: hourly * 24 * 30,
-		Command:        cmd,
+		Command:        buildCommand(engine, modelName, cfg, a),
 		Recommendation: a.Recommendation,
 	})
 }
@@ -118,15 +121,12 @@ func handleConfig(w http.ResponseWriter, r *http.Request) {
 	modelName := "meta-llama/Llama-3-70b-Instruct"
 	maxModelLen := 32768
 	numGpus := 4
-	maxNumSeqs := 16
-	dtypeBytes := 2
-	gpuVram := 80.0
 	engine := "vllm"
 	lang := "tr"
 	preset := "llama3-70b"
 
 	if r.Method == http.MethodPost {
-		r.ParseForm()
+		_ = r.ParseForm()
 		if p := r.FormValue("preset"); p != "" {
 			preset = p
 			switch p {
@@ -146,30 +146,14 @@ func handleConfig(w http.ResponseWriter, r *http.Request) {
 		} else if m := r.FormValue("modelName"); m != "" {
 			modelName = m
 		}
-
 		if l := r.FormValue("maxModelLen"); l != "" {
-			if parsedLen, err := strconv.Atoi(l); err == nil {
-				maxModelLen = parsedLen
+			if n, err := strconv.Atoi(l); err == nil {
+				maxModelLen = n
 			}
 		}
 		if g := r.FormValue("numGpus"); g != "" {
-			if parsedGpu, err := strconv.Atoi(g); err == nil {
-				numGpus = parsedGpu
-			}
-		}
-		if s := r.FormValue("maxNumSeqs"); s != "" {
-			if parsedSeq, err := strconv.Atoi(s); err == nil {
-				maxNumSeqs = parsedSeq
-			}
-		}
-		if dt := r.FormValue("dtypeBytes"); dt != "" {
-			if parsedDt, err := strconv.Atoi(dt); err == nil {
-				dtypeBytes = parsedDt
-			}
-		}
-		if gv := r.FormValue("gpuVram"); gv != "" {
-			if parsedGv, err := strconv.ParseFloat(gv, 64); err == nil {
-				gpuVram = parsedGv
+			if n, err := strconv.Atoi(g); err == nil {
+				numGpus = n
 			}
 		}
 		if e := r.FormValue("engine"); e != "" {
@@ -185,200 +169,116 @@ func handleConfig(w http.ResponseWriter, r *http.Request) {
 		MaxModelLen:          maxModelLen,
 		GpuMemoryUtilization: 0.90,
 		NumGpus:              numGpus,
-		MaxNumSeqs:           maxNumSeqs,
-		DtypeBytes:           dtypeBytes,
-		GpuVramGB:            gpuVram,
+		MaxNumSeqs:           16,
+		DtypeBytes:           2,
 	}
-
 	a := Analyze(cfg)
-	hourlyCostPerGpu := 2.15
-	totalHourlyCost := float64(numGpus) * hourlyCostPerGpu
-	monthlyCost := totalHourlyCost * 24 * 30
-
 	command := buildCommand(engine, modelName, cfg, a)
 	k8sYaml := buildK8s(engine, modelName, cfg, a)
+	hourly := 2.15 * float64(numGpus)
+	monthly := hourly * 24 * 30
 
-	var tTitle, tNavDashboard, tNavModels, tNavDocs, tNavGithub, tBadge, tDesc, tLangLbl, tEngLbl, tPresetLbl, tModelLbl, tLenLbl, tGpuLbl, tSeqLbl, tDtypeLbl, tVramTypeLbl, tBtn, tCard1Title, tRecText, tCostTitle, tCard2Title, tCard3Title string
-
+	trSel, enSel := "", ""
 	if lang == "en" {
-		tTitle = "Pusula Serve - Realistic LLM Serving MVP"
-		tNavDashboard = "Dashboard"
-		tNavModels = "AI Models"
-		tNavDocs = "API & Docs"
-		tNavGithub = "GitHub Repo"
-		tBadge = "MVP Active (No-BS Engine)"
-		tDesc = "Model preset + context + GPU count -> realistic VRAM/KV estimation, TP/PP selection, and launch command."
-		tLangLbl = "Language / Dil:"
-		tEngLbl = "Serving Engine:"
-		tPresetLbl = "Model Preset:"
-		tModelLbl = "Custom Model Name (HuggingFace):"
-		tLenLbl = "Context Window (Tokens):"
-		tGpuLbl = "Total GPU Count:"
-		tSeqLbl = "Max Concurrent Sequences (Batch Size):"
-		tDtypeLbl = "Quantization / Dtype:"
-		tVramTypeLbl = "GPU VRAM Capacity (GB):"
-		tBtn = "Run Realistic Analysis"
-		tCard1Title = "Hardware & Memory Breakdown:"
-		tRecText = "Optimal Cluster Topology:"
-		tCostTitle = "Cloud Infrastructure Cost Estimation:"
-		tCard2Title = "Generated Serving Command"
-		tCard3Title = "Kubernetes (K8s) Deployment Manifest"
+		enSel = "selected"
 	} else {
-		tTitle = "Pusula Serve - Gerçekçi LLM Serving MVP"
-		tNavDashboard = "Panel (Dashboard)"
-		tNavModels = "Modeller"
-		tNavDocs = "Dokümantasyon"
-		tNavGithub = "GitHub Kaynağı"
-		tBadge = "MVP Aktif (Gerçekçi Hesaplama Motoru)"
-		tDesc = "Model preset + context + GPU sayısı ile gerçekçi VRAM/KV analizi, TP/PP seçimi ve başlatma komutu."
-		tLangLbl = "Dil / Language:"
-		tEngLbl = "Serving Motoru:"
-		tPresetLbl = "Hazır Model Seçimi (Preset):"
-		tModelLbl = "Özel Model Adı (HuggingFace):"
-		tLenLbl = "Context Window (Token):"
-		tGpuLbl = "Toplam GPU Sayısı:"
-		tSeqLbl = "Eşzamanlı İstek (Max Num Seqs):"
-		tDtypeLbl = "Veri Tipi / Quantization:"
-		tVramTypeLbl = "GPU VRAM Kapasitesi (GB):"
-		tBtn = "Gerçekçi Analizi Çalıştır"
-		tCard1Title = "Donanım & Bellek Dökümü:"
-		tRecText = "Önerilen Cluster Topolojisi:"
-		tCostTitle = "Bulut Altyapı Maliyet Tahmini:"
-		tCard2Title = "Üretilen Başlatma Komutu"
-		tCard3Title = "Kubernetes (K8s) Deployment Manifestosu"
+		trSel = "selected"
+	}
+	vllmSel, sglSel := "", ""
+	if engine == "sglang" {
+		sglSel = "selected"
+	} else {
+		vllmSel = "selected"
+	}
+	sel := map[string]string{}
+	sel[preset] = "selected"
+
+	title := "Pusula Serve"
+	badge := "MVP"
+	if lang == "en" {
+		badge = "MVP estimator"
 	}
 
-	html := fmt.Sprintf(`
-		<!DOCTYPE html>
-		<html lang="%s">
-		<head>
-			<meta charset="UTF-8">
-			<title>%s</title>
-			<style>
-				body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background-color: #090d16; color: #e2e8f0; margin: 0; padding: 0; }
-				.navbar { background: #111827; border-bottom: 1px solid #1f2937; padding: 15px 40px; display: flex; justify-content: space-between; align-items: center; }
-				.navbar .logo { color: #38bdf8; font-weight: bold; font-size: 18px; text-decoration: none; }
-				.navbar .nav-links { display: flex; gap: 20px; }
-				.navbar .nav-links a { color: #94a3b8; text-decoration: none; font-size: 14px; font-weight: 500; }
-				.navbar .nav-links a:hover { color: #38bdf8; }
-				.main-wrapper { display: flex; justify-content: center; padding: 40px; }
-				.container { width: 100%%; max-width: 850px; background: #111827; border: 1px solid #1f2937; padding: 30px; border-radius: 12px; box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.3); }
-				h1 { color: #38bdf8; font-size: 24px; margin-top: 0; }
-				.badge { background: #0369a1; color: #e0f2fe; padding: 4px 10px; border-radius: 20px; font-size: 12px; font-weight: bold; }
-				.card { background: #1f2937; border-left: 4px solid #38bdf8; padding: 15px; margin: 20px 0; border-radius: 4px; }
-				.metric { font-size: 16px; color: #34d399; font-weight: bold; }
-				.cost { font-size: 18px; color: #f59e0b; font-weight: bold; }
-				pre { background: #030712; padding: 15px; border-radius: 6px; color: #38bdf8; overflow-x: auto; font-family: monospace; font-size: 13px; }
-				p { color: #94a3b8; }
-				label { display: block; margin-top: 12px; color: #cbd5e1; font-weight: 500; font-size: 14px; }
-				input, select { width: 100%%; padding: 10px; margin-top: 5px; background: #030712; border: 1px solid #374151; color: #fff; border-radius: 6px; box-sizing: border-box; }
-				button { margin-top: 20px; background: #0284c7; color: white; border: none; padding: 12px 20px; font-size: 16px; font-weight: bold; border-radius: 6px; cursor: pointer; width: 100%%; }
-				button:hover { background: #0369a1; }
-			</style>
-		</head>
-		<body>
-			<nav class="navbar">
-				<a href="#" class="logo">🧭 Pusula Serve MVP</a>
-				<div class="nav-links">
-					<a href="#">%s</a>
-					<a href="#">%s</a>
-					<a href="#">%s</a>
-					<a href="https://github.com/ccyhun67-gif/pusula-serve" target="_blank">%s</a>
-				</div>
-			</nav>
-			<div class="main-wrapper">
-				<div class="container">
-					<span class="badge">%s</span>
-					<h1>Pusula Serve Core</h1>
-					<p>%s</p>
-					<form method="POST">
-						<label>%s</label>
-						<select name="lang" onchange="this.form.submit()">
-							<option value="tr" %s>Türkçe (TR)</option>
-							<option value="en" %s>English (EN)</option>
-						</select>
-						<label>%s</label>
-						<select name="engine">
-							<option value="vllm" %s>vLLM (High-Throughput)</option>
-							<option value="sglang" %s>SGLang (RadixAttention & Low-Latency)</option>
-						</select>
-						<label>%s</label>
-						<select name="preset" onchange="this.form.submit()">
-							<option value="llama3-70b" %s>Llama-3-70B-Instruct</option>
-							<option value="deepseek-v3" %s>DeepSeek-V3 (MoE)</option>
-							<option value="qwen-2.5-72b" %s>Qwen-2.5-72B-Instruct</option>
-							<option value="mistral-large" %s>Mistral-Large-Instruct</option>
-							<option value="custom" %s>Özel Model Gir (Custom Model)</option>
-						</select>
-						<label>%s</label>
-						<input type="text" name="modelName" value="%s">
-						<label>%s</label>
-						<input type="number" name="maxModelLen" value="%d">
-						<label>%s</label>
-						<input type="number" name="numGpus" value="%d">
-						<label>%s</label>
-						<input type="number" name="maxNumSeqs" value="%d">
-						<label>%s</label>
-						<select name="dtypeBytes">
-							<option value="2" %s>FP16 / BF16 (2 bytes/param)</option>
-							<option value="1" %s>FP8 Quantized (1 byte/param)</option>
-						</select>
-						<label>%s</label>
-						<input type="number" step="1" name="gpuVram" value="%.0f">
-						<button type="submit">%s</button>
-					</form>
-					<div class="card">
-						<h3>%s</h3>
-						<p class="metric">Weights: %.1f GB · KV: %.1f GB · Per GPU: %.1f GB (Usable: %.1f GB)</p>
-						<p>%s (TP: %d, PP: %d) — OOM Status: <b>%v</b></p>
-						<p style="color: #38bdf8; margin-top: 8px;">💡 <b>Analiz:</b> %s</p>
-					</div>
-					<div class="card" style="border-left-color: #f59e0b;">
-						<h3 style="color: #fbbf24;">%s</h3>
-						<p class="cost">Saatlik Tahmini Maliyet: $%.2f / saat</p>
-						<p class="cost">Aylık Tahmini Bulut Maliyeti (7/24): $%.2f / ay (%d x GPU)</p>
-					</div>
-					<div class="card">
-						<h3>%s (%s):</h3>
-						<pre>%s</pre>
-					</div>
-					<div class="card" style="border-left-color: #10b981;">
-						<h3 style="color: #34d399;">%s</h3>
-						<pre>%s</pre>
-					</div>
-				</div>
-			</div>
-		</body>
-		</html>
-	`, 
-	lang, tTitle, 
-	tNavDashboard, tNavModels, tNavDocs, tNavGithub,
-	tBadge, tDesc, 
-	tLangLbl, 
-	func() string { if lang == "tr" { return "selected" } ; return "" }(),
-	func() string { if lang == "en" { return "selected" } ; return "" }(),
-	tEngLbl,
-	func() string { if engine == "vllm" { return "selected" } ; return "" }(),
-	func() string { if engine == "sglang" { return "selected" } ; return "" }(),
-	tPresetLbl,
-	func() string { if preset == "llama3-70b" { return "selected" } ; return "" }(),
-	func() string { if preset == "deepseek-v3" { return "selected" } ; return "" }(),
-	func() string { if preset == "qwen-2.5-72b" { return "selected" } ; return "" }(),
-	func() string { if preset == "mistral-large" { return "selected" } ; return "" }(),
-	func() string { if preset == "custom" { return "selected" } ; return "" }(),
-	tModelLbl, modelName,
-	tLenLbl, maxModelLen,
-	tGpuLbl, numGpus,
-	tSeqLbl, maxNumSeqs,
-	tDtypeLbl,
-	func() string { if dtypeBytes == 2 { return "selected" } ; return "" }(),
-	func() string { if dtypeBytes == 1 { return "selected" } ; return "" }(),
-	tVramTypeLbl, gpuVram,
-	tBtn,
-	tCard1Title, a.WeightGB, a.KVGB, a.PerGPUGB, a.UsablePerGPU, tRecText, a.TP, a.PP, a.OOM, recommendation,
-	tCostTitle, totalHourlyCost, monthlyCost, numGpus,
-	tCard2Title, engine, command,
-	tCard3Title, k8sYaml)
+	oom := "OK"
+	if a.OOM {
+		oom = "OOM RISK"
+	}
+
+	html := fmt.Sprintf(`<!DOCTYPE html>
+<html lang="%s">
+<head>
+<meta charset="UTF-8">
+<title>%s</title>
+<style>
+body{font-family:-apple-system,sans-serif;background:#090d16;color:#e2e8f0;margin:0}
+.navbar{background:#111827;padding:15px 40px;display:flex;justify-content:space-between}
+.logo{color:#38bdf8;font-weight:bold;text-decoration:none}
+.wrap{display:flex;justify-content:center;padding:40px}
+.container{width:100%%;max-width:850px;background:#111827;border:1px solid #1f2937;padding:30px;border-radius:12px}
+.badge{background:#0369a1;padding:4px 10px;border-radius:20px;font-size:12px}
+.card{background:#1f2937;border-left:4px solid #38bdf8;padding:15px;margin:20px 0}
+.metric{font-size:16px;color:#34d399;font-weight:bold}
+.cost{color:#f59e0b;font-weight:bold}
+pre{background:#030712;padding:15px;border-radius:6px;color:#38bdf8;overflow-x:auto;font-size:13px}
+label{display:block;margin-top:12px;color:#cbd5e1}
+input,select{width:100%%;padding:10px;margin-top:5px;background:#030712;border:1px solid #374151;color:#fff;border-radius:6px;box-sizing:border-box}
+button{margin-top:20px;background:#0284c7;color:#fff;border:none;padding:12px;font-weight:bold;border-radius:6px;width:100%%;cursor:pointer}
+</style>
+</head>
+<body>
+<nav class="navbar">
+<a class="logo" href="/">Pusula Serve</a>
+<a href="https://github.com/ccyhun67-gif/pusula-serve" style="color:#94a3b8">GitHub</a>
+</nav>
+<div class="wrap"><div class="container">
+<span class="badge">%s</span>
+<h1>%s</h1>
+<form method="POST">
+<label>Dil</label>
+<select name="lang" onchange="this.form.submit()">
+<option value="tr" %s>Türkçe</option>
+<option value="en" %s>English</option>
+</select>
+<label>Engine</label>
+<select name="engine">
+<option value="vllm" %s>vLLM</option>
+<option value="sglang" %s>SGLang</option>
+</select>
+<label>Preset</label>
+<select name="preset">
+<option value="llama3-70b" %s>Llama-3-70B</option>
+<option value="deepseek-v3" %s>DeepSeek-V3</option>
+<option value="qwen-2.5-72b" %s>Qwen-2.5-72B</option>
+<option value="mistral-large" %s>Mistral-Large</option>
+<option value="custom" %s>Custom</option>
+</select>
+<label>Model</label>
+<input name="modelName" value="%s">
+<label>max-model-len</label>
+<input type="number" name="maxModelLen" value="%d">
+<label>GPU count</label>
+<input type="number" name="numGpus" value="%d">
+<button type="submit">Analyze</button>
+</form>
+<div class="card">
+<p class="metric">Weights %.1f GB · KV %.1f GB · Per GPU %.1f GB · %s</p>
+<p>TP %d · PP %d · %s</p>
+</div>
+<div class="card">
+<p class="cost">$%.2f/hr · $%.2f/mo (%d x GPU @ $2.15 rough)</p>
+</div>
+<div class="card"><h3>Command</h3><pre>%s</pre></div>
+<div class="card"><h3>K8s</h3><pre>%s</pre></div>
+</div></div>
+</body></html>`,
+		lang, title, badge, title,
+		trSel, enSel, vllmSel, sglSel,
+		sel["llama3-70b"], sel["deepseek-v3"], sel["qwen-2.5-72b"], sel["mistral-large"], sel["custom"],
+		modelName, maxModelLen, numGpus,
+		a.WeightGB, a.KVGB, a.PerGPUGB, oom,
+		a.TP, a.PP, a.Recommendation,
+		hourly, monthly, numGpus,
+		command, k8sYaml)
 
 	fmt.Fprint(w, html)
 }
@@ -386,6 +286,6 @@ func handleConfig(w http.ResponseWriter, r *http.Request) {
 func StartServer() {
 	http.HandleFunc("/", handleConfig)
 	http.HandleFunc("/api/v1/optimize", handleAPI)
-	fmt.Println("Pusula Serve Gerçekçi MVP Sunucusu başlatılıyor...")
-	http.ListenAndServe(":8080", nil)
+	fmt.Println("Pusula Serve :8080")
+	_ = http.ListenAndServe(":8080", nil)
 }
