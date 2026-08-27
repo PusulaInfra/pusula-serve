@@ -7,7 +7,6 @@ import (
 )
 
 func handleConfig(w http.ResponseWriter, r *http.Request) {
-	// Varsayılan değerler
 	modelName := "meta-llama/Llama-3-70b-Instruct"
 	maxModelLen := 32768
 	numGpus := 4
@@ -15,7 +14,6 @@ func handleConfig(w http.ResponseWriter, r *http.Request) {
 	lang := "tr"
 	preset := "llama3-70b"
 
-	// Formdan gelen değerleri alıyoruz
 	if r.Method == http.MethodPost {
 		r.ParseForm()
 		if p := r.FormValue("preset"); p != "" {
@@ -65,7 +63,6 @@ func handleConfig(w http.ResponseWriter, r *http.Request) {
 
 	vram, recommendation := CalculateVRAMAndCost(cfg)
 	
-	// Akıllı TP ve PP Hesaplama Mantığı
 	tpSize := numGpus
 	ppSize := 1
 	if numGpus >= 8 && maxModelLen > 65536 {
@@ -73,12 +70,10 @@ func handleConfig(w http.ResponseWriter, r *http.Request) {
 		ppSize = 2
 	}
 
-	// Bulut Maliyet Hesaplama Simülasyonu (GPU başına ortalama saatlik $2.15 baz alınıyor)
 	hourlyCostPerGpu := 2.15
 	totalHourlyCost := float64(numGpus) * hourlyCostPerGpu
 	monthlyCost := totalHourlyCost * 24 * 30
 
-	// Komut üretimi
 	var command, k8sYaml string
 	if engine == "sglang" {
 		command = fmt.Sprintf("python3 -m sglang.launch_server --model-path %s --context-length %d --tp-size %d --port 30000", modelName, maxModelLen, tpSize)
@@ -86,7 +81,6 @@ func handleConfig(w http.ResponseWriter, r *http.Request) {
 		command = fmt.Sprintf("vllm serve %s --max-model-len %d --tensor-parallel-size %d --pipeline-parallel-size %d --gpu-memory-utilization 0.90", modelName, maxModelLen, tpSize, ppSize)
 	}
 
-	// Kubernetes YAML Manifest Örneği
 	k8sYaml = fmt.Sprintf(`apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -111,13 +105,16 @@ spec:
           limits:
             nvidia.com/gpu: "%d"`, engine, modelName, maxModelLen, tpSize, numGpus)
 
-	// Çok dilli sözlük
-	var tTitle, tBadge, tDesc, tLangLbl, tEngLbl, tPresetLbl, tModelLbl, tLenLbl, tGpuLbl, tBtn, tCard1Title, tVramText, tRecText, tCostTitle, tCard2Title, tCard3Title string
+	var tTitle, tNavDashboard, tNavModels, tNavDocs, tNavGithub, tBadge, tDesc, tLangLbl, tEngLbl, tPresetLbl, tModelLbl, tLenLbl, tGpuLbl, tBtn, tCard1Title, tVramText, tRecText, tCostTitle, tCard2Title, tCard3Title string
 
 	if lang == "en" {
 		tTitle = "Pusula Serve - Enterprise LLM SaaS Platform"
-		tBadge = "Elite Edition Active (Cost Calculator & K8s)"
-		tDesc = "Simulate multi-GPU cluster economics, optimize deployment topology, and export production-ready manifests."
+		tNavDashboard = "Dashboard"
+		tNavModels = "AI Models"
+		tNavDocs = "API & Docs"
+		tNavGithub = "GitHub Repo"
+		tBadge = "Elite SaaS Platform Active"
+		tDesc = "Simulate cluster economics, optimize deployment topology, and export production-ready manifests instantly."
 		tLangLbl = "Language / Dil:"
 		tEngLbl = "Serving Engine:"
 		tPresetLbl = "Model Preset:"
@@ -133,8 +130,12 @@ spec:
 		tCard3Title = "Kubernetes (K8s) Deployment Manifest"
 	} else {
 		tTitle = "Pusula Serve - Kurumsal LLM SaaS Platformu"
-		tBadge = "Elite Sürüm Aktif (Maliyet Hesaplayıcı & K8s)"
-		tDesc = "Çoklu GPU cluster ekonomisini simüle edin, dağılım topolojisini optimize edin ve üretime hazır manifestolar üretin."
+		tNavDashboard = "Panel (Dashboard)"
+		tNavModels = "Modeller"
+		tNavDocs = "Dokümantasyon"
+		tNavGithub = "GitHub Kaynağı"
+		tBadge = "Elite SaaS Platformu Aktif"
+		tDesc = "Cluster ekonomisini simüle edin, dağılım topolojisini optimize edin ve üretime hazır manifestolar üretin."
 		tLangLbl = "Dil / Language:"
 		tEngLbl = "Serving Motoru:"
 		tPresetLbl = "Hazır Model Seçimi (Preset):"
@@ -162,9 +163,24 @@ spec:
 					background-color: #090d16;
 					color: #e2e8f0;
 					margin: 0;
-					padding: 40px;
+					padding: 0;
+				}
+				.navbar {
+					background: #111827;
+					border-bottom: 1px solid #1f2937;
+					padding: 15px 40px;
+					display: flex;
+					justify-content: space-between;
+					align-items: center;
+				}
+				.navbar .logo { color: #38bdf8; font-weight: bold; font-size: 18px; text-decoration: none; }
+				.navbar .nav-links { display: flex; gap: 20px; }
+				.navbar .nav-links a { color: #94a3b8; text-decoration: none; font-size: 14px; font-weight: 500; transition: color 0.2s; }
+				.navbar .nav-links a:hover { color: #38bdf8; }
+				.main-wrapper {
 					display: flex;
 					justify-content: center;
+					padding: 40px;
 				}
 				.container {
 					width: 100%%;
@@ -189,71 +205,73 @@ spec:
 			</style>
 		</head>
 		<body>
-			<div class="container">
-				<span class="badge">%s</span>
-				<h1>Pusula Serve Elite SaaS</h1>
-				<p>%s</p>
-				
-				<form method="POST">
-					<label>%s</label>
-					<select name="lang" onchange="this.form.submit()">
-						<option value="tr" %s>Türkçe (TR)</option>
-						<option value="en" %s>English (EN)</option>
-					</select>
-
-					<label>%s</label>
-					<select name="engine">
-						<option value="vllm" %s>vLLM (High-Throughput)</option>
-						<option value="sglang" %s>SGLang (RadixAttention & Low-Latency)</option>
-					</select>
-
-					<label>%s</label>
-					<select name="preset" onchange="this.form.submit()">
-						<option value="llama3-70b" %s>Llama-3-70B-Instruct</option>
-						<option value="deepseek-v3" %s>DeepSeek-V3 (MoE)</option>
-						<option value="qwen-2.5-72b" %s>Qwen-2.5-72B-Instruct</option>
-						<option value="mistral-large" %s>Mistral-Large-Instruct</option>
-						<option value="custom" %s>Özel Model Gir (Custom Model)</option>
-					</select>
-
-					<label>%s</label>
-					<input type="text" name="modelName" value="%s">
-
-					<label>%s</label>
-					<input type="number" name="maxModelLen" value="%d">
-
-					<label>%s</label>
-					<input type="number" name="numGpus" value="%d">
-
-					<button type="submit">%s</button>
-				</form>
-
-				<div class="card">
-					<h3>%s</h3>
-					<p class="metric">%s %.2f GB</p>
-					<p>%s (TP: %d, PP: %d) — %s</p>
+			<nav class="navbar">
+				<a href="#" class="logo">🧭 Pusula Serve SaaS</a>
+				<div class="nav-links">
+					<a href="#">%s</a>
+					<a href="#">%s</a>
+					<a href="#">%s</a>
+					<a href="https://github.com" target="_blank">%s</a>
 				</div>
-
-				<div class="card" style="border-left-color: #f59e0b;">
-					<h3 style="color: #fbbf24;">%s</h3>
-					<p class="cost">Saatlik Tahmini Maliyet: $%.2f / saat</p>
-					<p class="cost">Aylık Tahmini Bulut Maliyeti (7/24): $%.2f / ay (%d x GPU)</p>
-				</div>
-
-				<div class="card">
-					<h3>%s (%s):</h3>
-					<pre>%s</pre>
-				</div>
-
-				<div class="card" style="border-left-color: #10b981;">
-					<h3 style="color: #34d399;">%s</h3>
-					<pre>%s</pre>
+			</nav>
+			<div class="main-wrapper">
+				<div class="container">
+					<span class="badge">%s</span>
+					<h1>Pusula Serve Enterprise</h1>
+					<p>%s</p>
+					<form method="POST">
+						<label>%s</label>
+						<select name="lang" onchange="this.form.submit()">
+							<option value="tr" %s>Türkçe (TR)</option>
+							<option value="en" %s>English (EN)</option>
+						</select>
+						<label>%s</label>
+						<select name="engine">
+							<option value="vllm" %s>vLLM (High-Throughput)</option>
+							<option value="sglang" %s>SGLang (RadixAttention & Low-Latency)</option>
+						</select>
+						<label>%s</label>
+						<select name="preset" onchange="this.form.submit()">
+							<option value="llama3-70b" %s>Llama-3-70B-Instruct</option>
+							<option value="deepseek-v3" %s>DeepSeek-V3 (MoE)</option>
+							<option value="qwen-2.5-72b" %s>Qwen-2.5-72B-Instruct</option>
+							<option value="mistral-large" %s>Mistral-Large-Instruct</option>
+							<option value="custom" %s>Özel Model Gir (Custom Model)</option>
+						</select>
+						<label>%s</label>
+						<input type="text" name="modelName" value="%s">
+						<label>%s</label>
+						<input type="number" name="maxModelLen" value="%d">
+						<label>%s</label>
+						<input type="number" name="numGpus" value="%d">
+						<button type="submit">%s</button>
+					</form>
+					<div class="card">
+						<h3>%s</h3>
+						<p class="metric">%s %.2f GB</p>
+						<p>%s (TP: %d, PP: %d) — %s</p>
+					</div>
+					<div class="card" style="border-left-color: #f59e0b;">
+						<h3 style="color: #fbbf24;">%s</h3>
+						<p class="cost">Saatlik Tahmini Maliyet: $%.2f / saat</p>
+						<p class="cost">Aylık Tahmini Bulut Maliyeti (7/24): $%.2f / ay (%d x GPU)</p>
+					</div>
+					<div class="card">
+						<h3>%s (%s):</h3>
+						<pre>%s</pre>
+					</div>
+					<div class="card" style="border-left-color: #10b981;">
+						<h3 style="color: #34d399;">%s</h3>
+						<pre>%s</pre>
+					</div>
 				</div>
 			</div>
 		</body>
 		</html>
 	`, 
-	lang, tTitle, tBadge, tDesc, 
+	lang, tTitle, 
+	tNavDashboard, tNavModels, tNavDocs, tNavGithub,
+	tBadge, tDesc, 
 	tLangLbl, 
 	func() string { if lang == "tr" { return "selected" } ; return "" }(),
 	func() string { if lang == "en" { return "selected" } ; return "" }(),
@@ -280,6 +298,6 @@ spec:
 
 func StartServer() {
 	http.HandleFunc("/", handleConfig)
-	fmt.Println("Pusula Serve Elite SaaS Sürümü başlatılıyor...")
+	fmt.Println("Pusula Serve SaaS Navbar Sürümü başlatılıyor...")
 	http.ListenAndServe(":8080", nil)
 }
