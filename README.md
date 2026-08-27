@@ -21,6 +21,15 @@
 
 ---
 
+## 🖼️ Preview / Arayüz Önizlemesi
+
+<div align="center">
+  <!-- Arayüz veya test çıktısı ekran görüntüsünü buraya ekleyebilirsin -->
+  <img src="https://via.placeholder.com/800x450/111827/38bdf8?text=Pusula+Serve+Dashboard+Preview" alt="Pusula Serve UI" width="100%" style="border-radius: 8px;">
+</div>
+
+---
+
 ## 🚀 Quick Start / Çalıştırma
 ```bash
 go test ./...
