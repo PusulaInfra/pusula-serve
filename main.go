@@ -1,7 +1,12 @@
 package main
 
-import "fmt"
-
 func main() {
-    fmt.Println("Pusula Serve Copilot baslatildi: LLM Serving optimizasyonmotoru aktif.")
+	cfg := ServingConfig{
+		ModelName:            "meta-llama/Llama-3-70b-Instruct",
+		MaxModelLen:          65536,
+		GpuMemoryUtilization: 0.90,
+		MaxNumSeqs:           256,
+	}
+
+	AnalyzeConfig(cfg)
 }
