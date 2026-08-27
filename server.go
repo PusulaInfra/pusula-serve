@@ -11,8 +11,9 @@ func handleConfig(w http.ResponseWriter, r *http.Request) {
 	modelName := "meta-llama/Llama-3-70b-Instruct"
 	maxModelLen := 32768
 	numGpus := 4
+	engine := "vllm"
 
-	// Kullanıcı formdan yeni değerler gönderdiyse onları alıyoruz
+	// Kullanıcı formdan yeni değerler gönderdiyse alıyoruz
 	if r.Method == http.MethodPost {
 		r.ParseForm()
 		if m := r.FormValue("modelName"); m != "" {
@@ -28,6 +29,9 @@ func handleConfig(w http.ResponseWriter, r *http.Request) {
 				numGpus = parsedGpu
 			}
 		}
+		if e := r.FormValue("engine"); e != "" {
+			engine = e
+		}
 	}
 
 	// Hesaplama motorunu çalıştırıyoruz
@@ -39,7 +43,14 @@ func handleConfig(w http.ResponseWriter, r *http.Request) {
 	}
 
 	vram, recommendation := CalculateVRAMAndCost(cfg)
-	command := fmt.Sprintf("vllm serve %s --max-model-len %d --tensor-parallel-size %d --gpu-memory-utilization 0.90", modelName, maxModelLen, numGpus)
+	
+	// Seçilen motora göre komut şablonu üretiyoruz
+	var command string
+	if engine == "sglang" {
+		command = fmt.Sprintf("python3 -m sglang.launch_server --model-path %s --context-length %d --tp-size %d --port 30000", modelName, maxModelLen, numGpus)
+	} else {
+		command = fmt.Sprintf("vllm serve %s --max-model-len %d --tensor-parallel-size %d --gpu-memory-utilization 0.90", modelName, maxModelLen, numGpus)
+	}
 
 	html := fmt.Sprintf(`
 		<!DOCTYPE html>
@@ -80,11 +91,17 @@ func handleConfig(w http.ResponseWriter, r *http.Request) {
 		</head>
 		<body>
 			<div class="container">
-				<span class="badge">İnteraktif LLM Optimizasyon Paneli</span>
+				<span class="badge">Multi-Engine (vLLM & SGLang) Aktif</span>
 				<h1>Pusula Serve Copilot</h1>
-				<p>Model ayarlarını yapılandırın, VRAM ihtiyacını ve hazır vLLM komutunu anında alın.</p>
+				<p>Serving motorunu seçin, parametreleri yapılandırın ve optimize komutu anında alın.</p>
 				
 				<form method="POST">
+					<label>Serving Motoru:</label>
+					<select name="engine">
+						<option value="vllm" %s>vLLM (High-Throughput)</option>
+						<option value="sglang" %s>SGLang (RadixAttention & Low-Latency)</option>
+					</select>
+
 					<label>Model Adı (HuggingFace Repo):</label>
 					<input type="text" name="modelName" value="%s">
 
@@ -104,19 +121,29 @@ func handleConfig(w http.ResponseWriter, r *http.Request) {
 				</div>
 
 				<div class="card">
-					<h3>Üretilen vLLM Komutu:</h3>
+					<h3>Üretilen Başlatma Komutu (%s):</h3>
 					<pre>%s</pre>
 				</div>
 			</div>
 		</body>
 		</html>
-	`, modelName, maxModelLen, numGpus, vram, recommendation, command)
+	`, func() string {
+		if engine == "vllm" {
+			return "selected"
+		}
+		return ""
+	}(), func() string {
+		if engine == "sglang" {
+			return "selected"
+		}
+		return ""
+	}(), modelName, maxModelLen, numGpus, vram, recommendation, engine, command)
 
 	fmt.Fprint(w, html)
 }
 
 func StartServer() {
 	http.HandleFunc("/", handleConfig)
-	fmt.Println("Pusula Serve interaktif web sunucusu baslatiliyor...")
+	fmt.Println("Pusula Serve Multi-Engine sunucusu baslatiliyor...")
 	http.ListenAndServe(":8080", nil)
 }
