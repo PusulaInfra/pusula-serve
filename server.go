@@ -49,7 +49,7 @@ func buildK8s(engine, model string, cfg ServingConfig, a Analysis) string {
 	image := "vllm/vllm-openai:v0.8.5"
 	containerCmd := fmt.Sprintf(`["vllm","serve","%s","--max-model-len","%d","--tensor-parallel-size","%d"]`, model, cfg.MaxModelLen, a.TP)
 	if engine == "sglang" {
-		image = "lmsysorg/sglang:latest"
+		image = "lmsysorg/sglang:v0.4.3"
 		containerCmd = fmt.Sprintf(`["python3","-m","sglang.launch_server","--model-path","%s","--tp-size","%d"]`, model, a.TP)
 	}
 	return fmt.Sprintf(`apiVersion: apps/v1
@@ -91,13 +91,15 @@ func handleAPI(w http.ResponseWriter, r *http.Request) {
 	if engine == "" {
 		engine = "vllm"
 	}
+	dtype := queryInt(r, "dtype_bytes", 2)
 	cfg := ServingConfig{
 		ModelName:            modelName,
 		MaxModelLen:          queryInt(r, "max_model_len", 32768),
 		NumGpus:              queryInt(r, "num_gpus", 4),
 		MaxNumSeqs:           queryInt(r, "max_num_seqs", 16),
 		GpuMemoryUtilization: 0.90,
-		DtypeBytes:           2,
+		DtypeBytes:           dtype,
+		GpuVramGB:            80.0,
 	}
 	a := Analyze(cfg)
 	hourly := 2.15 * float64(cfg.NumGpus)
@@ -117,6 +119,8 @@ func handleConfig(w http.ResponseWriter, r *http.Request) {
 	maxModelLen := 32768
 	numGpus := 4
 	maxNumSeqs := 16
+	dtypeBytes := 2
+	gpuVram := 80.0
 	engine := "vllm"
 	lang := "tr"
 	preset := "llama3-70b"
@@ -158,6 +162,16 @@ func handleConfig(w http.ResponseWriter, r *http.Request) {
 				maxNumSeqs = parsedSeq
 			}
 		}
+		if dt := r.FormValue("dtypeBytes"); dt != "" {
+			if parsedDt, err := strconv.Atoi(dt); err == nil {
+				dtypeBytes = parsedDt
+			}
+		}
+		if gv := r.FormValue("gpuVram"); gv != "" {
+			if parsedGv, err := strconv.ParseFloat(gv, 64); err == nil {
+				gpuVram = parsedGv
+			}
+		}
 		if e := r.FormValue("engine"); e != "" {
 			engine = e
 		}
@@ -172,14 +186,11 @@ func handleConfig(w http.ResponseWriter, r *http.Request) {
 		GpuMemoryUtilization: 0.90,
 		NumGpus:              numGpus,
 		MaxNumSeqs:           maxNumSeqs,
-		DtypeBytes:           2,
+		DtypeBytes:           dtypeBytes,
+		GpuVramGB:            gpuVram,
 	}
 
 	a := Analyze(cfg)
-	vram := a.TotalGB
-	recommendation := a.Recommendation
-	tpSize, ppSize := a.TP, a.PP
-
 	hourlyCostPerGpu := 2.15
 	totalHourlyCost := float64(numGpus) * hourlyCostPerGpu
 	monthlyCost := totalHourlyCost * 24 * 30
@@ -187,10 +198,10 @@ func handleConfig(w http.ResponseWriter, r *http.Request) {
 	command := buildCommand(engine, modelName, cfg, a)
 	k8sYaml := buildK8s(engine, modelName, cfg, a)
 
-	var tTitle, tNavDashboard, tNavModels, tNavDocs, tNavGithub, tBadge, tDesc, tLangLbl, tEngLbl, tPresetLbl, tModelLbl, tLenLbl, tGpuLbl, tBtn, tCard1Title, tVramText, tRecText, tCostTitle, tCard2Title, tCard3Title string
+	var tTitle, tNavDashboard, tNavModels, tNavDocs, tNavGithub, tBadge, tDesc, tLangLbl, tEngLbl, tPresetLbl, tModelLbl, tLenLbl, tGpuLbl, tSeqLbl, tDtypeLbl, tVramTypeLbl, tBtn, tCard1Title, tRecText, tCostTitle, tCard2Title, tCard3Title string
 
 	if lang == "en" {
-		tTitle = "Pusula Serve - Realist LLM Serving MVP"
+		tTitle = "Pusula Serve - Realistic LLM Serving MVP"
 		tNavDashboard = "Dashboard"
 		tNavModels = "AI Models"
 		tNavDocs = "API & Docs"
@@ -203,9 +214,11 @@ func handleConfig(w http.ResponseWriter, r *http.Request) {
 		tModelLbl = "Custom Model Name (HuggingFace):"
 		tLenLbl = "Context Window (Tokens):"
 		tGpuLbl = "Total GPU Count:"
+		tSeqLbl = "Max Concurrent Sequences (Batch Size):"
+		tDtypeLbl = "Quantization / Dtype:"
+		tVramTypeLbl = "GPU VRAM Capacity (GB):"
 		tBtn = "Run Realistic Analysis"
 		tCard1Title = "Hardware & Memory Breakdown:"
-		tVramText = "Memory Allocation Analysis:"
 		tRecText = "Optimal Cluster Topology:"
 		tCostTitle = "Cloud Infrastructure Cost Estimation:"
 		tCard2Title = "Generated Serving Command"
@@ -224,9 +237,11 @@ func handleConfig(w http.ResponseWriter, r *http.Request) {
 		tModelLbl = "Özel Model Adı (HuggingFace):"
 		tLenLbl = "Context Window (Token):"
 		tGpuLbl = "Toplam GPU Sayısı:"
+		tSeqLbl = "Eşzamanlı İstek (Max Num Seqs):"
+		tDtypeLbl = "Veri Tipi / Quantization:"
+		tVramTypeLbl = "GPU VRAM Kapasitesi (GB):"
 		tBtn = "Gerçekçi Analizi Çalıştır"
 		tCard1Title = "Donanım & Bellek Dökümü:"
-		tVramText = "Bellek Analizi:"
 		tRecText = "Önerilen Cluster Topolojisi:"
 		tCostTitle = "Bulut Altyapı Maliyet Tahmini:"
 		tCard2Title = "Üretilen Başlatma Komutu"
@@ -301,6 +316,15 @@ func handleConfig(w http.ResponseWriter, r *http.Request) {
 						<input type="number" name="maxModelLen" value="%d">
 						<label>%s</label>
 						<input type="number" name="numGpus" value="%d">
+						<label>%s</label>
+						<input type="number" name="maxNumSeqs" value="%d">
+						<label>%s</label>
+						<select name="dtypeBytes">
+							<option value="2" %s>FP16 / BF16 (2 bytes/param)</option>
+							<option value="1" %s>FP8 Quantized (1 byte/param)</option>
+						</select>
+						<label>%s</label>
+						<input type="number" step="1" name="gpuVram" value="%.0f">
 						<button type="submit">%s</button>
 					</form>
 					<div class="card">
@@ -345,8 +369,13 @@ func handleConfig(w http.ResponseWriter, r *http.Request) {
 	tModelLbl, modelName,
 	tLenLbl, maxModelLen,
 	tGpuLbl, numGpus,
+	tSeqLbl, maxNumSeqs,
+	tDtypeLbl,
+	func() string { if dtypeBytes == 2 { return "selected" } ; return "" }(),
+	func() string { if dtypeBytes == 1 { return "selected" } ; return "" }(),
+	tVramTypeLbl, gpuVram,
 	tBtn,
-	tCard1Title, a.WeightGB, a.KVGB, a.PerGPUGB, a.UsablePerGPU, tRecText, tpSize, ppSize, a.OOM, recommendation,
+	tCard1Title, a.WeightGB, a.KVGB, a.PerGPUGB, a.UsablePerGPU, tRecText, a.TP, a.PP, a.OOM, recommendation,
 	tCostTitle, totalHourlyCost, monthlyCost, numGpus,
 	tCard2Title, engine, command,
 	tCard3Title, k8sYaml)
