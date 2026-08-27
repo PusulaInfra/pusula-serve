@@ -16,7 +16,7 @@
 ---
 
 ## 💡 What it does / Ne Yapar?
-- **MVP Focus:** Model preset + context + GPU count -> VRAM/KV estimation, TP/PP, launch command.
+- **MVP Focus:** Model preset + context + GPU count + concurrency -> VRAM/KV estimation, TP/PP, launch command.
 - *Not yet included:* Traffic replay, prefix-cache hit estimation, precise GPU pricing.
 
 ---
@@ -25,4 +25,3 @@
 ```bash
 go test ./...
 go run main.go parser.go server.go
-
