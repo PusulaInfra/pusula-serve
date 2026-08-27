@@ -63,7 +63,6 @@ func ResolveModel(name string) ModelSpec {
 	case strings.Contains(n, "70"):
 		return modelRegistry[0]
 	default:
-		// bilinmeyen HF id: 70B dense varsay, ama raporda uyar
 		s := modelRegistry[0]
 		s.ID = "unknown-approx-70b"
 		return s
@@ -75,9 +74,7 @@ func pickParallelism(numGPUs, layers int, weightsGB, kvGB, gpuGB, util float64) 
 		numGPUs = 1
 	}
 	usable := gpuGB * util
-	need := weightsGB + kvGB
 
-	// önce sadece TP dene (tercih: düşük PP)
 	for tp = 1; tp <= numGPUs; tp *= 2 {
 		if numGPUs%tp != 0 {
 			continue
@@ -91,7 +88,6 @@ func pickParallelism(numGPUs, layers int, weightsGB, kvGB, gpuGB, util float64) 
 			return tp, pp
 		}
 	}
-	// sığmazsa tüm GPU TP
 	return numGPUs, 1
 }
 
@@ -113,14 +109,14 @@ func Analyze(cfg ServingConfig) Analysis {
 	}
 
 	spec := ResolveModel(cfg.ModelName)
-	weightGB := spec.ParamsB * float64(cfg.DtypeBytes) // 70B fp16 = 140GB
-	// KV: 2 (K+V) * layers * kv_heads * head_dim * seq * batch * bytes
+	weightGB := spec.ParamsB * float64(cfg.DtypeBytes)
+	
 	kvBytes := 2.0 * float64(spec.Layers*spec.KVHeads*spec.HeadDim) *
 		float64(cfg.MaxModelLen) * float64(cfg.MaxNumSeqs) * float64(cfg.DtypeBytes)
 	kvGB := kvBytes / (1024 * 1024 * 1024)
-	actGB := 2.0 // kaba activation/workspace
+	actGB := 2.0
 
-	const gpuGB = 80.0 // A100/H100 80GB varsayımı; sonra GPU tipi eklenir
+	const gpuGB = 80.0
 	tp, pp := pickParallelism(cfg.NumGpus, spec.Layers, weightGB, kvGB, gpuGB, cfg.GpuMemoryUtilization)
 
 	total := weightGB + kvGB + actGB
@@ -160,7 +156,6 @@ func Analyze(cfg ServingConfig) Analysis {
 	return a
 }
 
-// Eski imza — UI kırılmasın
 func CalculateVRAMAndCost(cfg ServingConfig) (float64, string) {
 	a := Analyze(cfg)
 	return a.TotalGB, a.Recommendation
