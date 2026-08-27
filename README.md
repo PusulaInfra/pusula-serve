@@ -1,47 +1,55 @@
 <div align="center">
 
-# Pusula Serve 🚀
-*Realistic LLM Serving Config & Optimization Copilot*
+<img src="https://images.unsplash.com/photo-1558494949-ef010cbdcc31?w=1400&q=80" alt="Pusula Serve" width="100%">
 
-[![Language](https://img.shields.io/badge/Language-Go-00ADD8?style=flat-square&logo=go&logoColor=white)](https://golang.org/)
-[![Engines](https://img.shields.io/badge/Engines-vLLM%20%7C%20SGLang-orange?style=flat-square)](https://github.com/vllm-project/vllm)
-[![Status](https://img.shields.io/badge/Status-MVP-blue?style=flat-square)]()
-[![License](https://img.shields.io/badge/License-MIT-green?style=flat-square)](LICENSE)
+# Pusula Serve
+
+**[EN]** LLM serving config copilot for vLLM & SGLang.  
+**[TR]** vLLM ve SGLang için serving ayarı, bellek ve KV tahmini.
+
+Model + context + GPU → VRAM · KV cache · TP/PP · launch command
+
+<br/>
+
+[![Go](https://img.shields.io/badge/Go-1.22+-00ADD8?style=for-the-badge&logo=go&logoColor=white)](https://go.dev)
+[![vLLM](https://img.shields.io/badge/vLLM-supported-orange?style=for-the-badge)](https://github.com/vllm-project/vllm)
+[![SGLang](https://img.shields.io/badge/SGLang-supported-orange?style=for-the-badge)](https://github.com/sgl-project/sglang)
+[![Status](https://img.shields.io/badge/Status-MVP-blue?style=for-the-badge)](#)
+[![License](https://img.shields.io/badge/License-MIT-green?style=for-the-badge)](LICENSE)
+
+[English](#english) · [Türkçe](#türkçe) · [API](#api) · [Roadmap](#roadmap)
 
 </div>
 
 ---
 
-> **[EN]** An open-source Go tool for vLLM & SGLang deployment estimation: model preset + context + GPU count -> realistic VRAM/KV cache calculation, TP/PP selection, and launch commands.
-> 
-> **[TR]** vLLM & SGLang sunumları için gerçekçi bellek tahmini, TP/PP seçimi ve başlatma komutu üreten Go tabanlı açık kaynak araç.
+<a id="english"></a>
 
----
+## English
 
-## 🖼️ Preview / Arayüz Önizlemesi
+Open-source Go tool. You pick a model, context length and GPU count. It estimates **weight memory**, **KV cache**, **per-GPU use**, **OOM risk**, then prints a **vLLM / SGLang** command and a rough Kubernetes snippet.
 
-> *Aşağıdaki görselin görünmesi için projenin içine ekran görüntüsü ekleyip yolunu güncelleyebilirsin (Örn: `docs/preview.png`).*
+It does **not** replay production traffic. It does **not** quote a real cloud invoice. Config first.
 
-<div align="center">
-  <img src="https://via.placeholder.com/900x450/1e1e1e/00ADD8?text=Pusula+Serve+UI+Preview" alt="Pusula Serve UI Preview" width="100%">
-</div>
+### Why it exists
 
----
+Teams often buy another GPU when `max-model-len` or `max-num-seqs` is the bill. KV grows with context × concurrency. This tool makes that visible before you launch.
 
-## 💡 What it does / Ne Yapar?
+### Features
 
-* **MVP Focus:** Model preset + context + GPU count + concurrency -> VRAM/KV cache estimation, TP/PP selection, launch command.
-* **Not yet included:** Traffic replay, prefix-cache hit estimation, precise GPU pricing.
+| Feature | Status |
+|---|---|
+| Model presets (Llama 70B, Qwen 72B, Mistral Large, DeepSeek-V3 MoE) | Done |
+| Weight vs KV split | Done |
+| TP / PP suggestion | Done |
+| OOM flag (80GB GPU, 0.90 util default) | Done |
+| vLLM + SGLang launch command | Done |
+| JSON API | Done |
+| Traffic replay / prefix-cache hit | Not yet |
+| Exact cloud pricing | Not yet |
 
----
-
-## 🚀 Quick Start / Çalıştırma
-
-Gereksinimleri kurduktan sonra projeyi hızlıca test etmek ve çalıştırmak için şu komutları kullanabilirsin:
+### Quick start
 
 ```bash
-# Testleri çalıştır
 go test ./...
-
-# Projeyi başlat
 go run main.go parser.go server.go
