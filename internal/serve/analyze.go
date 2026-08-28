@@ -100,3 +100,245 @@ var GPURegistry = []GPUSpec{
 	{ID: "H200", Name: "NVIDIA H200 141GB", VramGB: 141, BandGBs: 4800, TFLOPS16: 990},
 	{ID: "B200", Name: "NVIDIA B200 192GB", VramGB: 192, BandGBs: 8000, TFLOPS16: 2250},
 }
+
+func ResolveModel(name string) ModelSpec {
+	n := strings.ToLower(strings.TrimSpace(name))
+	for _, m := range ModelRegistry {
+		if n == m.ID || n == strings.ToLower(m.HF) || n == strings.ToLower(m.Name) {
+			return m
+		}
+	}
+	switch {
+	case strings.Contains(n, "deepseek"):
+		return mustModel("deepseek-v3")
+	case strings.Contains(n, "405"):
+		return mustModel("llama-3.1-405b")
+	case strings.Contains(n, "mixtral") || strings.Contains(n, "8x22"):
+		return mustModel("mixtral-8x22b")
+	case strings.Contains(n, "qwen") && strings.Contains(n, "32"):
+		return mustModel("qwen-2.5-32b")
+	case strings.Contains(n, "qwen") && strings.Contains(n, "7b"):
+		return mustModel("qwen-2.5-7b")
+	case strings.Contains(n, "qwen"):
+		return mustModel("qwen-2.5-72b")
+	case strings.Contains(n, "mistral"):
+		return mustModel("mistral-large")
+	case strings.Contains(n, "8b"):
+		return mustModel("llama-3.1-8b")
+	case strings.Contains(n, "70") || strings.Contains(n, "3.3"):
+		return mustModel("llama-3.3-70b")
+	default:
+		s := mustModel("llama-3.3-70b")
+		s.ID = "approx-70b"
+		s.Name = "Unknown · approximated as 70B GQA"
+		return s
+	}
+}
+
+func ResolveGPU(id string, fallbackVRAM float64) GPUSpec {
+	u := strings.ToUpper(strings.TrimSpace(id))
+	for _, g := range GPURegistry {
+		if g.ID == u {
+			return g
+		}
+	}
+	if fallbackVRAM <= 0 {
+		fallbackVRAM = 80
+	}
+	return GPUSpec{ID: "CUSTOM", Name: "Custom GPU", VramGB: fallbackVRAM, BandGBs: 2000, TFLOPS16: 300}
+}
+
+func mustModel(id string) ModelSpec {
+	for _, m := range ModelRegistry {
+		if m.ID == id {
+			return m
+		}
+	}
+	return ModelRegistry[1]
+}
+
+func KVBytesPerToken(spec ModelSpec, kvBytes int) float64 {
+	if kvBytes < 1 {
+		kvBytes = 2
+	}
+	if spec.Attn == AttnMLA {
+		latent := spec.MLALatent
+		if latent == 0 {
+			latent = 512
+		}
+		rope := spec.MLARopeDim
+		if rope == 0 {
+			rope = 64
+		}
+		return float64(spec.Layers * (latent + rope) * kvBytes)
+	}
+	return 2.0 * float64(spec.Layers*spec.KVHeads*spec.HeadDim*kvBytes)
+}
+
+func pickParallelism(numGPUs, layers int, weightsGB, kvGB, gpuGB, util float64) (tp, pp int) {
+	if numGPUs < 1 {
+		numGPUs = 1
+	}
+	usable := gpuGB * util
+	for tp = numGPUs; tp >= 1; tp /= 2 {
+		if numGPUs%tp != 0 {
+			continue
+		}
+		pp = numGPUs / tp
+		if pp > layers {
+			continue
+		}
+		perGPU := (weightsGB / float64(tp*pp)) + (kvGB / float64(tp))
+		if perGPU <= usable {
+			return tp, pp
+		}
+		if tp == 1 {
+			break
+		}
+	}
+	return numGPUs, 1
+}
+
+func CloudRate(provider, gpu string) float64 {
+	rates := map[string]map[string]float64{
+		"lambda": {"H100": 2.49, "H200": 3.79, "A100": 1.29, "L40S": 0.79, "B200": 4.99},
+		"runpod": {"H100": 2.29, "H200": 3.49, "A100": 1.19, "L40S": 0.74, "B200": 4.49},
+		"aws":    {"H100": 4.10, "H200": 5.40, "A100": 3.67, "L40S": 1.80, "B200": 6.80},
+		"gcp":    {"H100": 3.99, "H200": 5.20, "A100": 3.50, "L40S": 1.75, "B200": 6.50},
+	}
+	p := strings.ToLower(provider)
+	g := strings.ToUpper(gpu)
+	if table, ok := rates[p]; ok {
+		if rate, ok := table[g]; ok {
+			return rate
+		}
+	}
+	return 2.49
+}
+
+func Normalize(cfg ServingConfig) ServingConfig {
+	if cfg.MaxModelLen < 1 {
+		cfg.MaxModelLen = 8192
+	}
+	if cfg.NumGpus < 1 {
+		cfg.NumGpus = 1
+	}
+	if cfg.GpuMemoryUtilization <= 0 || cfg.GpuMemoryUtilization > 0.98 {
+		cfg.GpuMemoryUtilization = 0.90
+	}
+	if cfg.MaxNumSeqs < 1 {
+		cfg.MaxNumSeqs = 16
+	}
+	if cfg.DtypeBytes != 1 && cfg.DtypeBytes != 2 {
+		cfg.DtypeBytes = 2
+	}
+	if cfg.KVDtypeBytes != 1 && cfg.KVDtypeBytes != 2 {
+		cfg.KVDtypeBytes = cfg.DtypeBytes
+	}
+	if cfg.Engine == "" {
+		cfg.Engine = "vllm"
+	}
+	if cfg.Provider == "" {
+		cfg.Provider = "lambda"
+	}
+	if cfg.GpuType == "" {
+		cfg.GpuType = "H100"
+	}
+	if cfg.PrefixHit < 0 {
+		cfg.PrefixHit = 0
+	}
+	if cfg.PrefixHit > 0.95 {
+		cfg.PrefixHit = 0.95
+	}
+	return cfg
+}
+
+func runtimeGB(engine string) float64 {
+	if strings.ToLower(engine) == "sglang" {
+		return 2.4
+	}
+	return 2.2
+}
+
+func Analyze(cfg ServingConfig) Analysis {
+	cfg = Normalize(cfg)
+	spec := ResolveModel(cfg.ModelName)
+	gpu := ResolveGPU(cfg.GpuType, cfg.GpuVramGB)
+	cfg.GpuVramGB = gpu.VramGB
+	weightGB := spec.ParamsB * float64(cfg.DtypeBytes)
+	perTok := KVBytesPerToken(spec, cfg.KVDtypeBytes)
+	rawKV := perTok * float64(cfg.MaxModelLen) * float64(cfg.MaxNumSeqs)
+	eff := 1.0 - cfg.PrefixHit*0.75
+	kvGB := (rawKV * eff) / (1024 * 1024 * 1024)
+	rt := runtimeGB(cfg.Engine)
+	tp, pp := pickParallelism(cfg.NumGpus, spec.Layers, weightGB, kvGB, gpu.VramGB, cfg.GpuMemoryUtilization)
+	perGPU := (weightGB / float64(tp*pp)) + (kvGB / float64(tp)) + rt
+	usable := gpu.VramGB * cfg.GpuMemoryUtilization
+	oom := perGPU > usable
+	total := weightGB + kvGB + rt
+	kvShare := 0.0
+	if total > 0 {
+		kvShare = kvGB / total
+	}
+	maxSeqs := maxFitSeqs(spec, cfg, gpu, weightGB, rt)
+	hourly := CloudRate(cfg.Provider, gpu.ID) * float64(cfg.NumGpus)
+	a := Analysis{Spec: spec, GPU: gpu, WeightGB: round1(weightGB), KVGB: round1(kvGB), KVPerTokenKB: round1(perTok / 1024), RuntimeGB: rt, TotalGB: round1(total), PerGPUGB: round1(perGPU), UsablePerGPU: round1(usable), TP: tp, PP: pp, OOM: oom, HeadroomGB: round1(usable - perGPU), KVShare: math.Round(kvShare*1000) / 1000, HourlyUSD: math.Round(hourly*100) / 100, MonthlyUSD: math.Round(hourly*24*30*100) / 100, MaxFitSeqs: maxSeqs, PrefixEffective: math.Round(eff*1000) / 1000}
+	switch {
+	case oom && maxSeqs >= 1:
+		a.Recommendation = fmt.Sprintf("OOM at max-num-seqs=%d. Same box fits about %d concurrent sequences if you cut the batch, not the model.", cfg.MaxNumSeqs, maxSeqs)
+		a.Fix = fmt.Sprintf("Set --max-num-seqs %d or shorten max-model-len.", maxSeqs)
+	case oom:
+		a.Recommendation = fmt.Sprintf("OOM: %.1f GB/GPU > %.1f GB usable. Add GPUs or drop to FP8.", perGPU, usable)
+		a.Fix = "Add GPUs or switch precision to FP8."
+	case a.KVGB > a.WeightGB*0.5:
+		a.Recommendation = fmt.Sprintf("KV is %.1f GB versus %.1f GB weights. The invoice is context x concurrency.", a.KVGB, a.WeightGB)
+		a.Fix = "Cap max-model-len and turn on prefix caching."
+	case spec.MoE && spec.Attn == AttnMLA:
+		a.Recommendation = fmt.Sprintf("MoE+MLA: loaded %.0fB, active %.0fB, KV ~ %.1f KB/token.", spec.ParamsB, spec.ActiveB, a.KVPerTokenKB)
+		a.Fix = "Do not size KV as if this were GQA."
+	case spec.MoE:
+		a.Recommendation = fmt.Sprintf("MoE: loaded %.0fB, active %.0fB. Cheap tokens, not free context.", spec.ParamsB, spec.ActiveB)
+		a.Fix = "Do not open native context because unit price dropped."
+	default:
+		a.Recommendation = fmt.Sprintf("TP=%d PP=%d, headroom %.1f GB/GPU. Cluster holds ~%d sequences.", tp, pp, a.HeadroomGB, maxSeqs)
+		a.Fix = "Diff engine flags before you pull latest."
+	}
+	a.VLLMCommand = BuildVLLM(spec.HF, cfg, a)
+	a.SGLangCommand = BuildSGLang(spec.HF, cfg, a)
+	a.KubeSnippet = BuildKube(spec.HF, cfg, a)
+	if strings.ToLower(cfg.Engine) == "sglang" {
+		a.EngineCommand = a.SGLangCommand
+	} else {
+		a.EngineCommand = a.VLLMCommand
+	}
+	return a
+}
+
+func maxFitSeqs(spec ModelSpec, cfg ServingConfig, gpu GPUSpec, weightGB, rt float64) int {
+	lo, hi, best := 0, 4096, 0
+	for lo <= hi {
+		mid := (lo + hi) / 2
+		probe := cfg
+		probe.MaxNumSeqs = mid
+		if mid == 0 {
+			lo = mid + 1
+			continue
+		}
+		perTok := KVBytesPerToken(spec, probe.KVDtypeBytes)
+		eff := 1.0 - probe.PrefixHit*0.75
+		kvGB := (perTok * float64(probe.MaxModelLen) * float64(mid) * eff) / (1024 * 1024 * 1024)
+		tp, pp := pickParallelism(probe.NumGpus, spec.Layers, weightGB, kvGB, gpu.VramGB, probe.GpuMemoryUtilization)
+		per := (weightGB / float64(tp*pp)) + (kvGB / float64(tp)) + rt
+		if per <= gpu.VramGB*probe.GpuMemoryUtilization {
+			best = mid
+			lo = mid + 1
+		} else {
+			hi = mid - 1
+		}
+	}
+	return best
+}
+
+func round1(v float64) float64 {
+	return math.Round(v*10) / 10
+}
