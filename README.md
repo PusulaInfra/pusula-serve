@@ -1,10 +1,12 @@
 <div align="center">
 
+<img src="https://pusulainfra.github.io/banner.svg" alt="Pusula Serve" width="100%"/>
+
 # Pusula Serve
 
 **The chip is not the bill.**
 
-Heterogeneous inference fleet planner for vLLM, SGLang, and mixed boxes.
+LLM serving config copilot for vLLM, SGLang, KV, TP/PP.
 
 [![Live](https://img.shields.io/badge/console-pusulainfra.github.io-6ee0ff)](https://pusulainfra.github.io/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
@@ -12,19 +14,18 @@ Heterogeneous inference fleet planner for vLLM, SGLang, and mixed boxes.
 
 </div>
 
-**Live v1:** [https://pusulainfra.github.io/](https://pusulainfra.github.io/)
+**Live:** [https://pusulainfra.github.io/](https://pusulainfra.github.io/)
 
 Not a VRAM toy. A serving plan.
 
 - Fit / OOM on H100, 5090, RTX Pro, Spark GB10 UMA, Mac Studio / Mini
 - GQA and MLA KV, MoE loaded vs active
 - Concurrency board 1 / 4 / 16 / 32
-- Prefix hit as a lever, not a slogan
-- Infer vs agent role on a mixed fleet
-- Prefill/decode split call (yes / no / maybe)
-- Multi-LoRA tax, speculative-decode tax, ISL/OSL shape
-- Launch command for vLLM / SGLang / MLX
-- Scenes from production posts: prefix 0%, MoE+256K, pull latest, Spark leak
+- Prefix hit as a lever
+- Infer vs agent on a mixed fleet
+- P/D split call, LoRA tax, spec tax
+- Launch line for vLLM / SGLang / MLX
+- Spark stand: 256K + util 0.78
 
 Change the flag before you buy another GPU.
 
