@@ -1,0 +1,12 @@
+bin/
+dist/
+*.exe
+*.dll
+*.so
+*.dylib
+.DS_Store
+.idea/
+.vscode/
+*.log
+/pusula-serve
+.grok-write-check

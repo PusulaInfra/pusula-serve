@@ -1,55 +1,69 @@
 <div align="center">
 
-<img src="https://images.unsplash.com/photo-1558494949-ef010cbdcc31?w=1400&q=80" alt="Pusula Serve" width="100%">
-
 # Pusula Serve
 
-**[EN]** LLM serving config copilot for vLLM & SGLang.  
-**[TR]** vLLM ve SGLang için serving ayarı, bellek ve KV tahmini.
+**The chip is not the bill.**
 
-Model + context + GPU → VRAM · KV cache · TP/PP · launch command
+Production planner for vLLM and SGLang.
 
-<br/>
+Weights · KV architecture (GQA / MLA) · TP/PP · OOM · max-num-seqs that actually fits · launch command
 
-[![Go](https://img.shields.io/badge/Go-1.22+-00ADD8?style=for-the-badge&logo=go&logoColor=white)](https://go.dev)
-[![vLLM](https://img.shields.io/badge/vLLM-supported-orange?style=for-the-badge)](https://github.com/vllm-project/vllm)
-[![SGLang](https://img.shields.io/badge/SGLang-supported-orange?style=for-the-badge)](https://github.com/sgl-project/sglang)
-[![Status](https://img.shields.io/badge/Status-MVP-blue?style=for-the-badge)](#)
-[![License](https://img.shields.io/badge/License-MIT-green?style=for-the-badge)](LICENSE)
-
-[English](#english) · [Türkçe](#türkçe) · [API](#api) · [Roadmap](#roadmap)
+[![Go](https://img.shields.io/badge/Go-1.22+-00ADD8?logo=go&logoColor=white)](https://go.dev)
+[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+[![X](https://img.shields.io/badge/X-@pusulainfra-000)](https://x.com/pusulainfra)
 
 </div>
 
----
+## Why this, not another VRAM toy
 
-<a id="english"></a>
+Most calculators multiply `params × bytes` and stop.
 
-## English
+Serving bills break on the next layer:
 
-Open-source Go tool. You pick a model, context length and GPU count. It estimates **weight memory**, **KV cache**, **per-GPU use**, **OOM risk**, then prints a **vLLM / SGLang** command and a rough Kubernetes snippet.
+- KV grows with **context × concurrency**, not with the model card
+- MoE looks cheap on active params and still loads expert weights
+- DeepSeek-style **MLA** is not GQA
+- Pulling `latest` changes batch and cache defaults on the same weights
 
-It does **not** replay production traffic. It does **not** quote a real cloud invoice. Config first.
+Pusula Serve is a serving config console. Change the flag before you buy another GPU.
 
-### Why it exists
+It does **not** replay production traffic. Cloud numbers are list-price sketches.
 
-Teams often buy another GPU when `max-model-len` or `max-num-seqs` is the bill. KV grows with context × concurrency. This tool makes that visible before you launch.
+## Live UI
 
-### Features
-
-| Feature | Status |
-|---|---|
-| Model presets (Llama 70B, Qwen 72B, Mistral Large, DeepSeek-V3 MoE) | Done |
-| Weight vs KV split | Done |
-| TP / PP suggestion | Done |
-| OOM flag (80GB GPU, 0.90 util default) | Done |
-| vLLM + SGLang launch command | Done |
-| JSON API | Done |
-| Traffic replay / prefix-cache hit | Not yet |
-| Exact cloud pricing | Not yet |
-
-### Quick start
+Open `docs/index.html` or:
 
 ```bash
 go test ./...
-go run main.go parser.go server.go
+go run ./cmd/pusula-serve
+# http://localhost:8080
+```
+
+GitHub Pages: Settings → Pages → `/docs`.
+
+## CLI
+
+```bash
+go run ./cmd/pusula-serve -cli \
+  -model deepseek-v3 \
+  -ctx 65536 \
+  -gpus 8 \
+  -gpu H100 \
+  -engine vllm
+```
+
+## API
+
+`GET /api/health`  
+`GET /api/models`  
+`POST /api/analyze`
+
+## One repo
+
+This repository is the product.
+
+Archive or delete `PusulaInfra/pusula-infra`. It was a broken Wails experiment with a checked-in `.exe`.
+
+## Brand
+
+[x.com/pusulainfra](https://x.com/pusulainfra) — what actually works in prod.
