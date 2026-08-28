@@ -6,7 +6,7 @@
 
 Production planner for vLLM and SGLang.
 
-Weights · KV architecture (GQA / MLA) · TP/PP · OOM · max-num-seqs that actually fits · launch command
+Open the console: [`docs/index.html`](docs/index.html)
 
 [![Go](https://img.shields.io/badge/Go-1.22+-00ADD8?logo=go&logoColor=white)](https://go.dev)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
@@ -14,24 +14,25 @@ Weights · KV architecture (GQA / MLA) · TP/PP · OOM · max-num-seqs that actu
 
 </div>
 
-## Why this, not another VRAM toy
+## What operators actually need
 
-Most calculators multiply `params × bytes` and stop.
+Generic calculators stop at `params × bytes`.
 
-Serving bills break on the next layer:
+Serving bills break after that:
 
-- KV grows with **context × concurrency**, not with the model card
-- MoE looks cheap on active params and still loads expert weights
-- DeepSeek-style **MLA** is not GQA
-- Pulling `latest` changes batch and cache defaults on the same weights
+| Question | Generic VRAM toy | Pusula Serve |
+|---|---|---|
+| Weights | params × dtype | same, labeled as **loaded** weights |
+| KV | often GQA-only | **GQA and MLA** (DeepSeek latent+RoPE) |
+| MoE | active params look cheap | loaded experts stay on HBM |
+| Concurrency | ignored or a slider | **max-num-seqs that still fits** |
+| Prefix cache | missing | hit-rate lever on KV |
+| Output | a GB number | **vLLM / SGLang command + K8s sketch** |
+| Honesty | "required VRAM" | estimate, not a profiler |
 
-Pusula Serve is a serving config console. Change the flag before you buy another GPU.
+Change the flag before you buy another GPU.
 
-It does **not** replay production traffic. Cloud numbers are list-price sketches.
-
-## Live UI
-
-Open `docs/index.html` or:
+## Console
 
 ```bash
 go test ./...
@@ -39,7 +40,11 @@ go run ./cmd/pusula-serve
 # http://localhost:8080
 ```
 
-GitHub Pages: Settings → Pages → `/docs`.
+Or open `docs/index.html` — no server required.
+
+GitHub Pages: Settings → Pages → Deploy from GitHub Actions (workflow already in-repo).
+Live URL after first successful Actions run:
+`https://pusulainfra.github.io/pusula-serve/`
 
 ## CLI
 
@@ -58,11 +63,13 @@ go run ./cmd/pusula-serve -cli \
 `GET /api/models`  
 `POST /api/analyze`
 
-## One repo
+## Not this product
 
-This repository is the product.
+It does not replay production traces.
+Cloud dollars are list-price sketches.
+It will not tell you p99 under real traffic.
 
-Archive or delete `PusulaInfra/pusula-infra`. It was a broken Wails experiment with a checked-in `.exe`.
+It will tell you when **context × concurrency** is the invoice, not the chip.
 
 ## Brand
 
