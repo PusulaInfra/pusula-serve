@@ -3,59 +3,184 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1"/>
-<title>Pusula Serve</title>
+<title>Pusula Serve — production LLM serving config</title>
+<meta name="description" content="vLLM and SGLang serving planner. Weights vs KV, MLA vs GQA, TP/PP, OOM, launch command. The chip is not the bill."/>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet"/>
 <style>
-:root{--bg:#05070c;--line:#1a2333;--text:#e7eef8;--mute:#8b97ab;--cyan:#6ee0ff;--amber:#f5c16c;--red:#ff6b81;--green:#5ee9b5}
-*{box-sizing:border-box}body{margin:0;background:#05070c;color:var(--text);font-family:ui-sans-serif,system-ui;padding:20px}
-.wrap{max-width:980px;margin:0 auto}.mark{color:var(--cyan);letter-spacing:.16em;font-size:12px;text-transform:uppercase}
-h1{margin:8px 0 6px}select,input{width:100%;background:#070b12;color:#fff;border:1px solid var(--line);border-radius:10px;padding:10px;margin:0 0 10px}
-.grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}.card{border:1px solid var(--line);border-radius:14px;padding:14px;background:#0b1018}
-.kpi{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin:12px 0}.kpi div{border:1px solid var(--line);border-radius:12px;padding:10px}
-pre{white-space:pre-wrap;background:#070b12;padding:12px;border-radius:12px;color:var(--cyan);overflow:auto}
-@media(max-width:700px){.grid,.kpi{grid-template-columns:1fr}}
+:root{--bg:#05070c;--line:#1a2333;--text:#e7eef8;--mute:#8b97ab;--cyan:#6ee0ff;--amber:#f5c16c;--red:#ff6b81;--green:#5ee9b5;--violet:#b39bff}
+*{box-sizing:border-box}html,body{margin:0;background:var(--bg);color:var(--text);font-family:"IBM Plex Sans",system-ui,sans-serif}
+body{min-height:100vh;background-image:radial-gradient(1000px 500px at 0% -10%,rgba(110,224,255,.09),transparent 50%),radial-gradient(800px 400px at 100% 0%,rgba(179,155,255,.06),transparent 45%)}
+a{color:var(--cyan);text-decoration:none}.wrap{max-width:1240px;margin:0 auto;padding:22px 18px 56px}
+header{display:flex;justify-content:space-between;gap:16px;align-items:flex-start;margin-bottom:22px}
+.mark{font-family:"IBM Plex Mono",monospace;font-size:12px;letter-spacing:.18em;text-transform:uppercase;color:var(--cyan)}
+h1{margin:6px 0 0;font-size:30px;letter-spacing:-.04em}.sub{color:var(--mute);max-width:640px;line-height:1.55;margin:8px 0 0}
+.nav{display:flex;gap:8px;flex-wrap:wrap}
+.chip,button{border:1px solid var(--line);background:#0d1420;color:var(--text);border-radius:999px;padding:7px 12px;font-size:12px;cursor:pointer}
+.chip.active,.sc.active{border-color:var(--cyan);color:var(--cyan);background:rgba(110,224,255,.08)}
+.scenarios{display:flex;gap:8px;flex-wrap:wrap;margin:0 0 16px}
+.layout{display:grid;grid-template-columns:340px 1fr;gap:16px}
+.card{background:rgba(11,16,24,.92);border:1px solid var(--line);border-radius:16px;padding:16px}
+.label{font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--mute);margin:0 0 6px}
+.field{margin-bottom:11px}select,input[type=number],input[type=range]{width:100%;background:#070b12;color:var(--text);border:1px solid var(--line);border-radius:10px;padding:9px 10px}
+.pair{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.hero{display:grid;grid-template-columns:1.2fr .8fr;gap:16px;margin-bottom:16px}
+.stack{height:22px;border-radius:99px;overflow:hidden;display:flex;background:#151c2a;margin-top:14px}.stack i{display:block;height:100%}
+.w{background:var(--cyan)}.k{background:var(--amber)}.r{background:var(--violet)}.h{background:#1c2636}
+.kpi{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-top:14px}
+.kpi div{border:1px solid var(--line);border-radius:12px;padding:12px;background:#080d16}
+.kpi b{display:block;margin-top:6px;font-size:20px}
+.status{font-family:"IBM Plex Mono",monospace;font-size:13px;margin-top:10px}
+.note{color:var(--mute);line-height:1.55;margin:8px 0 0}
+pre{margin:0;background:#070b12;border:1px solid var(--line);border-radius:12px;padding:12px;overflow:auto;font:12px/1.55 "IBM Plex Mono",monospace;color:var(--cyan);white-space:pre-wrap}
+.rowbtns{display:flex;gap:8px;margin:10px 0 12px}.legend{display:flex;gap:14px;color:var(--mute);font-size:12px;margin-top:8px}
+.dot{width:8px;height:8px;border-radius:99px;display:inline-block;margin-right:6px}
+footer{margin-top:22px;color:var(--mute);font-size:12px;display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap}
+@media(max-width:980px){.layout,.hero,.kpi,.pair{grid-template-columns:1fr}h1{font-size:24px}}
 </style></head>
 <body>
 <div class="wrap">
-<div class="mark">Pusula Infra · Serve</div>
-<h1>The chip is not the bill.</h1>
-<p style="color:var(--mute)">vLLM / SGLang serving planner. GQA vs MLA. Config first.</p>
-<div class="grid">
-<div class="card">
-<select id="model"></select>
-<select id="gpu"></select>
-<select id="engine"><option value="vllm">vLLM</option><option value="sglang">SGLang</option></select>
-<select id="gpus"><option>1</option><option>2</option><option selected>4</option><option>8</option></select>
-<input id="ctx" type="number" value="16384"/>
-<input id="seqs" type="number" value="16"/>
-<select id="dtype"><option value="2">BF16</option><option value="1">FP8</option></select>
+<header>
+  <div>
+    <div class="mark">Pusula Infra · Serve</div>
+    <h1 id="title">The chip is not the bill.</h1>
+    <p class="sub" id="sub">Production planner for vLLM and SGLang. Weights, KV architecture, topology, OOM, launch command.</p>
+  </div>
+  <div class="nav">
+    <button id="lang" type="button">TR</button>
+    <a class="chip" href="https://x.com/pusulainfra" target="_blank" rel="noreferrer">@pusulainfra</a>
+    <a class="chip" href="https://github.com/PusulaInfra/pusula-serve" target="_blank" rel="noreferrer">GitHub</a>
+  </div>
+</header>
+<div class="scenarios" id="scenarios"></div>
+<div class="layout">
+<aside class="card">
+  <div class="pair">
+    <div class="field"><div class="label">Provider</div>
+      <select id="provider"><option value="lambda">Lambda</option><option value="runpod">RunPod</option><option value="aws">AWS</option><option value="gcp">GCP</option></select></div>
+    <div class="field"><div class="label">GPU</div><select id="gpu"></select></div>
+  </div>
+  <div class="pair">
+    <div class="field"><div class="label">Engine</div>
+      <select id="engine"><option value="vllm">vLLM</option><option value="sglang">SGLang</option></select></div>
+    <div class="field"><div class="label">GPUs</div>
+      <select id="gpus"><option>1</option><option>2</option><option selected>4</option><option>8</option></select></div>
+  </div>
+  <div class="field"><div class="label">Model</div><select id="model"></select></div>
+  <div class="pair">
+    <div class="field"><div class="label">Weights</div>
+      <select id="dtype"><option value="2">BF16 / FP16</option><option value="1">FP8</option></select></div>
+    <div class="field"><div class="label">KV cache</div>
+      <select id="kvdtype"><option value="2">KV BF16</option><option value="1">KV FP8</option></select></div>
+  </div>
+  <div class="pair">
+    <div class="field"><div class="label">max-model-len</div><input id="ctx" type="number" value="16384" min="512" step="512"/></div>
+    <div class="field"><div class="label">max-num-seqs</div><input id="seqs" type="number" value="16" min="1"/></div>
+  </div>
+  <div class="field">
+    <div class="label">Prefix-cache hit <span id="hitv">0%</span></div>
+    <input id="hit" type="range" min="0" max="90" step="5" value="0"/>
+  </div>
+</aside>
+<main>
+  <section class="card hero">
+    <div>
+      <div class="label">VRAM / GPU</div>
+      <div class="stack" id="stack"></div>
+      <div class="legend">
+        <span><i class="dot" style="background:var(--cyan)"></i>weights</span>
+        <span><i class="dot" style="background:var(--amber)"></i>KV</span>
+        <span><i class="dot" style="background:var(--violet)"></i>runtime</span>
+        <span><i class="dot" style="background:#1c2636"></i>headroom</span>
+      </div>
+      <div class="status" id="health"></div>
+      <p class="note" id="reco"></p>
+      <p class="note" id="fix"></p>
+    </div>
+    <div>
+      <div class="label">Architecture</div><p class="note" id="arch"></p>
+      <div class="label" style="margin-top:14px">Fit</div><p class="note" id="fit"></p>
+    </div>
+  </section>
+  <div class="kpi">
+    <div><div class="label">Weights</div><b id="m-w">—</b></div>
+    <div><div class="label">KV</div><b id="m-k">—</b></div>
+    <div><div class="label">Per GPU</div><b id="m-p">—</b></div>
+    <div><div class="label">Est. / month</div><b id="m-c">—</b></div>
+  </div>
+  <section class="card" style="margin-top:16px">
+    <div class="label">Launch command</div>
+    <div class="rowbtns"><button type="button" id="copy">Copy</button><button type="button" id="share">Copy share link</button></div>
+    <pre id="cmd"></pre>
+  </section>
+  <section class="card" style="margin-top:16px">
+    <div class="label">Kubernetes sketch</div><pre id="kube"></pre>
+  </section>
+</main>
 </div>
-<div class="card">
-<div id="health"></div>
-<p id="reco" style="color:var(--mute)"></p>
-<div class="kpi"><div>Weights<br><b id="mw"></b></div><div>KV<br><b id="mk"></b></div><div>Per GPU<br><b id="mp"></b></div><div>Fit seqs<br><b id="ms"></b></div></div>
-<pre id="cmd"></pre>
-</div></div>
-<p style="color:var(--mute)"><a href="https://github.com/PusulaInfra/pusula-serve" style="color:var(--cyan)">GitHub</a> · <a href="https://x.com/pusulainfra" style="color:var(--cyan)">@pusulainfra</a></p>
+<footer>
+  <span>Estimate, not a profiler. MLA KV uses latent+RoPE, not GQA heads. List price is not an invoice.</span>
+  <span>what actually works in prod</span>
+</footer>
 </div>
 <script>
-const models=[{id:"llama-3.3-70b",name:"Llama 3.3 70B",hf:"meta-llama/Llama-3.3-70B-Instruct",params:70.6,layers:80,kvHeads:8,headDim:128,attn:"gqa",moe:false,active:70.6},{id:"deepseek-v3",name:"DeepSeek-V3",hf:"deepseek-ai/DeepSeek-V3",params:671,layers:61,kvHeads:1,headDim:128,attn:"mla",moe:true,active:37,latent:512,rope:64},{id:"qwen-2.5-72b",name:"Qwen2.5 72B",hf:"Qwen/Qwen2.5-72B-Instruct",params:72.7,layers:80,kvHeads:8,headDim:128,attn:"gqa",moe:false,active:72.7},{id:"llama-3.1-8b",name:"Llama 3.1 8B",hf:"meta-llama/Llama-3.1-8B-Instruct",params:8,layers:32,kvHeads:8,headDim:128,attn:"gqa",moe:false,active:8}];
-const gpus=[{id:"H100",name:"H100 80GB",vram:80},{id:"H200",name:"H200 141GB",vram:141},{id:"A100",name:"A100 80GB",vram:80},{id:"L40S",name:"L40S 48GB",vram:48}];
-const $=id=>document.getElementById(id);
-$("model").innerHTML=models.map(m=>`<option value="${m.id}">${m.name}</option>`).join("");
-$("gpu").innerHTML=gpus.map(g=>`<option value="${g.id}">${g.name}</option>`).join("");
-function kvB(s,b){return s.attn==="mla"?s.layers*((s.latent||512)+(s.rope||64))*b:2*s.layers*s.kvHeads*s.headDim*b}
-function paint(){
- const s=models.find(m=>m.id===$("model").value), g=gpus.find(x=>x.id===$("gpu").value);
- const dtype=+$("dtype").value, ctx=+$("ctx").value, seqs=+$("seqs").value, n=+$("gpus").value, util=.9, rt=2.2;
- const w=s.params*dtype, kv=(kvB(s,dtype)*ctx*seqs)/(1024**3);
- let tp=n; while(n%tp) tp--; const pp=n/tp; const per=w/(tp*pp)+kv/tp+rt, usable=g.vram*util, oom=per>usable;
- $("mw").textContent=w.toFixed(1)+" GB"; $("mk").textContent=kv.toFixed(1)+" GB"; $("mp").textContent=per.toFixed(1)+" GB";
- $("health").textContent=oom?"OOM":"HEADROOM "+(usable-per).toFixed(1)+" GB  TP "+tp+" PP "+pp;
- $("health").style.color=oom?"var(--red)":"var(--green)";
- $("reco").textContent=oom?"Cut max-num-seqs or max-model-len before buying another GPU.":"Config first. The bill is context x concurrency.";
- $("ms").textContent="~";
- const hf=s.hf; $("cmd").textContent=$("engine").value==="sglang"?`python3 -m sglang.launch_server --model-path ${hf} --context-length ${ctx} --tp-size ${tp}`:`vllm serve ${hf} --max-model-len ${ctx} --tensor-parallel-size ${tp} --pipeline-parallel-size ${pp} --max-num-seqs ${seqs} --enable-prefix-caching`;
+const models=[
+{id:"llama-3.1-8b",name:"Llama 3.1 8B",hf:"meta-llama/Llama-3.1-8B-Instruct",params:8,active:8,layers:32,kvHeads:8,headDim:128,moe:false,attn:"gqa"},
+{id:"llama-3.3-70b",name:"Llama 3.3 70B",hf:"meta-llama/Llama-3.3-70B-Instruct",params:70.6,active:70.6,layers:80,kvHeads:8,headDim:128,moe:false,attn:"gqa"},
+{id:"llama-3.1-405b",name:"Llama 3.1 405B",hf:"meta-llama/Llama-3.1-405B-Instruct",params:405,active:405,layers:126,kvHeads:8,headDim:128,moe:false,attn:"gqa"},
+{id:"qwen-2.5-72b",name:"Qwen2.5 72B",hf:"Qwen/Qwen2.5-72B-Instruct",params:72.7,active:72.7,layers:80,kvHeads:8,headDim:128,moe:false,attn:"gqa"},
+{id:"qwen-2.5-32b",name:"Qwen2.5 32B",hf:"Qwen/Qwen2.5-32B-Instruct",params:32.5,active:32.5,layers:64,kvHeads:8,headDim:128,moe:false,attn:"gqa"},
+{id:"mixtral-8x22b",name:"Mixtral 8x22B",hf:"mistralai/Mixtral-8x22B-Instruct-v0.1",params:141,active:39,layers:56,kvHeads:8,headDim:128,moe:true,attn:"gqa"},
+{id:"deepseek-v3",name:"DeepSeek-V3",hf:"deepseek-ai/DeepSeek-V3",params:671,active:37,layers:61,kvHeads:1,headDim:128,moe:true,attn:"mla",latent:512,rope:64}
+];
+const gpus=[{id:"L40S",name:"NVIDIA L40S 48GB",vram:48},{id:"A100",name:"NVIDIA A100 80GB",vram:80},{id:"H100",name:"NVIDIA H100 80GB",vram:80},{id:"H200",name:"NVIDIA H200 141GB",vram:141},{id:"B200",name:"NVIDIA B200 192GB",vram:192}];
+const rates={lambda:{H100:2.49,H200:3.79,A100:1.29,L40S:0.79,B200:4.99},runpod:{H100:2.29,H200:3.49,A100:1.19,L40S:0.74,B200:4.49},aws:{H100:4.10,H200:5.40,A100:3.67,L40S:1.80,B200:6.80},gcp:{H100:3.99,H200:5.20,A100:3.50,L40S:1.75,B200:6.50}};
+const scenarios=[{id:"rag",en:"RAG 8K",tr:"RAG 8K",model:"llama-3.3-70b",ctx:8192,seqs:32,hit:40},{id:"agent",en:"Agent 32K",tr:"Ajan 32K",model:"qwen-2.5-72b",ctx:32768,seqs:16,hit:25},{id:"moe",en:"MoE long ctx",tr:"MoE uzun ctx",model:"deepseek-v3",ctx:65536,seqs:16,hit:20,dtype:1},{id:"tight",en:"1xH100 tight",tr:"1xH100 dar",model:"llama-3.1-8b",ctx:16384,seqs:64,gpus:1,hit:10}];
+const i18n={en:{title:"The chip is not the bill.",sub:"Production planner for vLLM and SGLang. Weights, KV architecture, topology, OOM, launch command.",lang:"TR"},tr:{title:"Faturayı çip değil, serving keser.",sub:"vLLM ve SGLang için prod planlayıcı. Ağırlık, KV mimarisi, topoloji, OOM, başlatma komutu.",lang:"EN"}};
+let lang="en"; const $=id=>document.getElementById(id);
+function kvBytes(spec,kvB){return spec.attn==="mla"?spec.layers*((spec.latent||512)+(spec.rope||64))*kvB:2*spec.layers*spec.kvHeads*spec.headDim*kvB}
+function pickTP(n,layers,w,kv,usable){for(let tp=n;tp>=1;tp=Math.floor(tp/2)||1){if(n%tp!==0){if(tp===1)break;continue;}const pp=n/tp;if(pp>layers){if(tp===1)break;continue;}if((w/(tp*pp)+kv/tp)<=usable)return[tp,pp];if(tp===1)break;}return[n,1]}
+function analyze(){
+  const spec=models.find(m=>m.id===$("model").value), gpu=gpus.find(g=>g.id===$("gpu").value);
+  const dtype=+$("dtype").value, kvB=+$("kvdtype").value, ctx=+$("ctx").value, seqs=+$("seqs").value, n=+$("gpus").value;
+  const hit=+$("hit").value/100, util=0.9, rt=$("engine").value==="sglang"?2.4:2.2;
+  const weight=spec.params*dtype, perTok=kvBytes(spec,kvB), eff=1-hit*0.75, kv=(perTok*ctx*seqs*eff)/(1024**3);
+  const [tp,pp]=pickTP(n,spec.layers,weight,kv,gpu.vram*util), per=weight/(tp*pp)+kv/tp+rt, usable=gpu.vram*util, oom=per>usable;
+  let lo=0,hi=4096,best=0; while(lo<=hi){const mid=(lo+hi)>>1; if(!mid){lo=1;continue;} const kv2=(perTok*ctx*mid*eff)/(1024**3); const [tp2,pp2]=pickTP(n,spec.layers,weight,kv2,usable); if(weight/(tp2*pp2)+kv2/tp2+rt<=usable){best=mid;lo=mid+1;} else hi=mid-1;}
+  const hourly=(rates[$("provider").value][gpu.id]||2.49)*n; let rec,fix;
+  if(oom&&best>=1){rec=`OOM at max-num-seqs=${seqs}. Same box fits about ${best} sequences if you cut the batch.`;fix=`Set --max-num-seqs ${best} or shorten max-model-len.`;}
+  else if(oom){rec=`OOM: ${per.toFixed(1)} GB/GPU > ${usable.toFixed(1)} usable.`;fix="Add GPUs or switch to FP8.";}
+  else if(kv>weight*0.5){rec=`KV is ${kv.toFixed(1)} GB versus ${weight.toFixed(1)} GB weights. Invoice is context x concurrency.`;fix="Cap max-model-len and keep the prefix stable.";}
+  else if(spec.moe&&spec.attn==="mla"){rec=`MoE+MLA: loaded ${spec.params}B, active ${spec.active}B, KV ~ ${(perTok/1024).toFixed(1)} KB/token.`;fix="Do not size this KV as GQA.";}
+  else if(spec.moe){rec=`MoE: loaded ${spec.params}B, active ${spec.active}B. Cheap tokens, not free context.`;fix="Do not open native context because unit price dropped.";}
+  else {rec=`TP=${tp} PP=${pp}, headroom ${(usable-per).toFixed(1)} GB/GPU. Fits ~${best} sequences.`;fix="Diff engine flags before you pull latest.";}
+  const vllm=`vllm serve ${spec.hf} --max-model-len ${ctx} --tensor-parallel-size ${tp} --pipeline-parallel-size ${pp} --gpu-memory-utilization 0.90 --max-num-seqs ${seqs} --enable-prefix-caching`;
+  const sgl=`python3 -m sglang.launch_server --model-path ${spec.hf} --context-length ${ctx} --tp-size ${tp} --mem-fraction-static 0.90 --port 8000`;
+  const kube=`apiVersion: apps/v1\nkind: Deployment\nmetadata:\n  name: pusula-serve\nspec:\n  replicas: 1\n  template:\n    spec:\n      containers:\n        - name: engine\n          image: vllm/vllm-openai:latest\n          args: ["${spec.hf}","--max-model-len","${ctx}","--tensor-parallel-size","${tp}","--enable-prefix-caching"]\n          resources:\n            limits:\n              nvidia.com/gpu: ${n}`;
+  return {spec,gpu,weight,kv,rt,per,usable,oom,tp,pp,best,rec,fix,cmd:$("engine").value==="sglang"?sgl:vllm,kube,monthly:hourly*24*30,perTok,hit};
 }
-["model","gpu","engine","gpus","ctx","seqs","dtype"].forEach(id=>$(id).addEventListener("input",paint));
-paint();
+function paint(){
+  $("hitv").textContent=$("hit").value+"%"; const a=analyze();
+  const weightPer=a.weight/(a.tp*a.pp), kvPer=a.kv/a.tp, sum=Math.max(a.usable, weightPer+kvPer+a.rt);
+  $("stack").innerHTML=`<i class="w" style="width:${100*weightPer/sum}%"></i><i class="k" style="width:${100*kvPer/sum}%"></i><i class="r" style="width:${100*a.rt/sum}%"></i><i class="h" style="width:${Math.max(0,100*(a.usable-(weightPer+kvPer+a.rt))/sum)}%"></i>`;
+  $("m-w").textContent=a.weight.toFixed(1)+" GB"; $("m-k").textContent=a.kv.toFixed(1)+" GB"; $("m-p").textContent=a.per.toFixed(1)+" GB"; $("m-c").textContent="$"+Math.round(a.monthly).toLocaleString();
+  $("health").textContent=a.oom?`OOM  ·  TP ${a.tp}  PP ${a.pp}  ·  ${a.gpu.id}`:`HEADROOM ${(a.usable-a.per).toFixed(1)} GB  ·  TP ${a.tp}  PP ${a.pp}  ·  ${a.gpu.id}`;
+  $("health").style.color=a.oom?"var(--red)":"var(--green)"; $("reco").textContent=a.rec; $("fix").textContent=a.fix;
+  $("arch").textContent=`${a.spec.name} · ${a.spec.attn.toUpperCase()}${a.spec.moe?" · MoE":""} · ${(a.perTok/1024).toFixed(1)} KB KV/token`;
+  $("fit").textContent=`Max concurrent sequences that still fit: ${a.best}`; $("cmd").textContent=a.cmd; $("kube").textContent=a.kube;
+  const q=new URLSearchParams({model:$("model").value,gpu:$("gpu").value,gpus:$("gpus").value,ctx:$("ctx").value,seqs:$("seqs").value,engine:$("engine").value,dtype:$("dtype").value,kvdtype:$("kvdtype").value,hit:$("hit").value,provider:$("provider").value});
+  history.replaceState(null,"","?"+q.toString());
+}
+function applyLang(){const t=i18n[lang]; $("title").textContent=t.title; $("sub").textContent=t.sub; $("lang").textContent=t.lang; $("scenarios").querySelectorAll(".sc").forEach((el,i)=>el.textContent=scenarios[i][lang]);}
+function loadQuery(){const q=new URLSearchParams(location.search); ["model","gpu","gpus","ctx","seqs","engine","dtype","kvdtype","hit","provider"].forEach(id=>{if(q.get(id)) $(id).value=q.get(id);});}
+$("model").innerHTML=models.map(m=>`<option value="${m.id}">${m.name}${m.moe?" · MoE":""}${m.attn==="mla"?" · MLA":""}</option>`).join("");
+$("gpu").innerHTML=gpus.map(g=>`<option value="${g.id}" ${g.id==="H100"?"selected":""}>${g.name}</option>`).join("");
+$("model").value="llama-3.3-70b";
+$("scenarios").innerHTML=scenarios.map(s=>`<button class="chip sc" data-id="${s.id}" type="button">${s.en}</button>`).join("");
+$("scenarios").addEventListener("click",e=>{const b=e.target.closest(".sc"); if(!b)return; const s=scenarios.find(x=>x.id===b.dataset.id); $("model").value=s.model; $("ctx").value=s.ctx; $("seqs").value=s.seqs; $("hit").value=s.hit; if(s.gpus)$("gpus").value=s.gpus; if(s.dtype)$("dtype").value=s.dtype; [...$("scenarios").children].forEach(x=>x.classList.toggle("active",x===b)); paint();});
+["provider","gpu","engine","gpus","model","dtype","kvdtype","ctx","seqs","hit"].forEach(id=>$(id).addEventListener("input",paint));
+$("lang").onclick=()=>{lang=lang==="en"?"tr":"en";applyLang();};
+$("copy").onclick=()=>navigator.clipboard.writeText($("cmd").textContent);
+$("share").onclick=()=>navigator.clipboard.writeText(location.href);
+loadQuery(); applyLang(); paint();
 </script></body></html>
