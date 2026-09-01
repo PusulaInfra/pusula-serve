@@ -6,6 +6,7 @@ import (
 	"log"
 	"net/http"
 
+	"github.com/PusulaInfra/pusula-serve/engine" // Yeni eklediğimiz kurumsal motor
 	"github.com/PusulaInfra/pusula-serve/internal/httpapi"
 	"github.com/PusulaInfra/pusula-serve/internal/serve"
 )
@@ -19,7 +20,7 @@ func main() {
 	seqs := flag.Int("seqs", 16, "max concurrent sequences")
 	gpu := flag.String("gpu", "H100", "GPU type")
 	dtype := flag.Int("dtype", 2, "bytes per param: 2=bf16/fp16, 1=fp8")
-	engine := flag.String("engine", "vllm", "vllm or sglang")
+	engineType := flag.String("engine", "vllm", "vllm or sglang")
 	provider := flag.String("provider", "lambda", "lambda, runpod, aws, gcp")
 	flag.Parse()
 
@@ -31,7 +32,7 @@ func main() {
 			MaxNumSeqs:  *seqs,
 			DtypeBytes:  *dtype,
 			GpuType:     *gpu,
-			Engine:      *engine,
+			Engine:      *engineType,
 			Provider:    *provider,
 		})
 		fmt.Printf("model     %s (%s)\n", a.Spec.Name, a.Spec.HF)
@@ -45,8 +46,30 @@ func main() {
 		return
 	}
 
+	// İsteğe bağlı olarak mevcut HTTP API handler'ını engine middleware ile sarmalayabilir 
+	// veya kendi özel kart rotalarınızı buraya ekleyebilirsiniz:
+	logger := slog.Default()
+	mux := http.NewServeMux()
+
+	// Mevcut API rotasını dahil et
+	mux.Handle("/", httpapi.New().Handler())
+
+	// 16 seq stands ve 32 seq pages kurallarına sahip kart işlemcisi middleware örneği
+	mux.HandleFunc("/card", engine.CardMiddleware(logger, func(w http.ResponseWriter, r *http.Request) {
+		processor := r.Context().Value("cardProcessor").(*engine.CardProcessor)
+		requestCtx := r.Context()
+
+		_ = processor.AddSequenceStand(requestCtx)
+		_ = processor.AddPage(requestCtx)
+
+		// Kartlar arası geçişte bağlamı temizlemek için:
+		// processor.CutContext(requestCtx)
+
+		w.Write([]byte("pusula-serve 16 seq stands & 32 seq pages active!"))
+	}))
+
 	log.Printf("pusula-serve  http://localhost%s", *addr)
-	if err := http.ListenAndServe(*addr, httpapi.New().Handler()); err != nil {
+	if err := http.ListenAndServe(*addr, mux); err != nil {
 		log.Fatal(err)
 	}
 }
