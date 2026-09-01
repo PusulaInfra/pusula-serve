@@ -1,22 +1,50 @@
 {
-  "dashboard": {
-    "title": "Pusula-Serve Enterprise LLM Telemetry",
-    "panels": [
-      {
-        "title": "Active Sequence Stands (Max 16)",
-        "type": "stat",
-        "targets": [
-          { "expr": "pusula_serve_active_stands" }
-        ]
-      },
-      {
-        "title": "TTFT Milliseconds & Token Generation Speed",
-        "type": "timeseries",
-        "targets": [
-          { "expr": "pusula_serve_ttft_ms" },
-          { "expr": "pusula_serve_tokens_per_sec" }
-        ]
-      }
-    ]
-  }
+  "annotations": { "list": [] },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 0,
+  "id": 1,
+  "links": [],
+  "liveNow": false,
+  "name": "PusulaInfra Enterprise Monitoring",
+  "panels": [
+    {
+      "collapsed": false,
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
+      "id": 1,
+      "title": "vLLM / SGLang KV Cache & VRAM Usage",
+      "type": "timeseries"
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
+      "id": 2,
+      "title": "HBM Bandwidth & Token Throughput",
+      "type": "timeseries"
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 },
+      "id": 3,
+      "title": "Green AI: Power Consumption (TDP) & Carbon Emission",
+      "type": "timeseries"
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 8 },
+      "id": 4,
+      "title": "SLA Latency (TTFT & TPOT Simulation)",
+      "type": "timeseries"
+    }
+  ],
+  "refresh": "5s",
+  "schemaVersion": 38,
+  "style": "dark",
+  "tags": ["pusulainfra", "ai", "llm"],
+  "time": { "from": "now-1h", "to": "now" },
+  "timepicker": {},
+  "timezone": "",
+  "title": "PusulaInfra Enterprise Monitoring",
+  "version": 1,
+  "weekStart": ""
 }
