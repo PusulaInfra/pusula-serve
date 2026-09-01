@@ -22,4 +22,4 @@ jobs:
         run: go mod tidy
 
       - name: Build Project
-        run: go build -v ./cmd/pusula-serve
+        run: go build -v ./...
