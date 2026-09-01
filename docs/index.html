@@ -1,1 +1,128 @@
-<!DOCTYPE html><html><head><meta charset="utf-8"/><meta http-equiv="refresh" content="0;url=https://pusulainfra.github.io/"/><title>Pusula Serve</title></head><body><p>Live console: <a href="https://pusulainfra.github.io/">pusulainfra.github.io</a></p></body></html>
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="utf-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <title>Pusula Serve — Enterprise LLM Console</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        darkbg: '#0a0b10',
+                        cardbg: 'rgba(18, 20, 32, 0.75)',
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        .glass-card {
+            background: rgba(18, 20, 32, 0.75);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 16px;
+            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+        }
+        .terminal-font {
+            font-family: 'JetBrains Mono', 'Fira Code', ui-monospace, monospace;
+            font-variant-numeric: tabular-nums;
+        }
+    </style>
+</head>
+<body class="bg-darkbg text-gray-100 min-h-screen p-4 md:p-8">
+    <div class="max-w-4xl mx-auto space-y-6">
+        
+        <!-- Header -->
+        <div class="glass-card p-6 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+            <div>
+                <div class="flex items-center gap-3">
+                    <h1 class="text-2xl font-bold tracking-tight">Pusula Serve</h1>
+                    <!-- Canlı Durum LED'i -->
+                    <div class="flex items-center gap-2 bg-emerald-950/50 border border-emerald-500/30 px-3 py-1 rounded-full">
+                        <span class="relative flex h-2.5 w-2.5">
+                          <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                          <span class="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
+                        </span>
+                        <span class="text-xs terminal-font tracking-wider text-emerald-400 uppercase font-semibold">16 STANDS · 32 PAGES</span>
+                    </div>
+                </div>
+                <p class="text-sm text-gray-400 mt-1">Not a VRAM toy. A serving plan. The chip is not the bill.</p>
+            </div>
+            <div class="flex gap-2">
+                <a href="https://github.com/PusulaInfra/pusula-serve" target="_blank" class="px-4 py-2 bg-gray-800 hover:bg-gray-700 border border-gray-700 rounded-lg text-sm font-medium transition">GitHub</a>
+                <a href="#launch" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 rounded-lg text-sm font-medium transition">Launch Scripts</a>
+            </div>
+        </div>
+
+        <!-- What This Is -->
+        <div class="glass-card p-6">
+            <h2 class="text-sm font-semibold tracking-wider text-gray-400 uppercase mb-2">What This Is</h2>
+            <p class="text-gray-300 text-sm leading-relaxed">
+                Pick a model, a box, a context, a concurrent limit. The engine estimates weights + KV. 
+                <span class="text-emerald-400 font-semibold">STANDS</span> fits safely. 
+                <span class="text-rose-400 font-semibold">PAGES</span> trigger OOMs. Strict enforcement layer active.
+            </p>
+        </div>
+
+        <!-- Workload & Box Config Grid -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <!-- Workload Card -->
+            <div class="glass-card p-6 space-y-4">
+                <h2 class="text-sm font-semibold tracking-wider text-gray-400 uppercase">Workload Configuration</h2>
+                <div>
+                    <label class="block text-xs text-gray-400 mb-1">MODEL</label>
+                    <div class="w-full bg-gray-900/80 border border-gray-700 rounded-lg p-3 text-sm font-medium">Llama 3.3 70B</div>
+                </div>
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-xs text-gray-400 mb-1">MAX-MODEL-LEN</label>
+                        <div class="bg-gray-900/80 border border-gray-700 rounded-lg p-3 text-sm terminal-font">16K</div>
+                    </div>
+                    <div>
+                        <label class="block text-xs text-gray-400 mb-1">MAX-NUM-SEQS</label>
+                        <div class="bg-gray-900/80 border border-gray-700 rounded-lg p-3 text-sm terminal-font text-emerald-400">16</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Box Card -->
+            <div class="glass-card p-6 space-y-4">
+                <h2 class="text-sm font-semibold tracking-wider text-gray-400 uppercase">Hardware Box</h2>
+                <div>
+                    <label class="block text-xs text-gray-400 mb-1">NODE</label>
+                    <div class="w-full bg-gray-900/80 border border-gray-700 rounded-lg p-3 text-sm font-medium">H100 80GB (x4)</div>
+                </div>
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-xs text-gray-400 mb-1">USABLE VRAM</label>
+                        <div class="bg-gray-900/80 border border-gray-700 rounded-lg p-3 text-sm terminal-font">72.0 GB</div>
+                    </div>
+                    <div>
+                        <label class="block text-xs text-gray-400 mb-1">TP x PP</label>
+                        <div class="bg-gray-900/80 border border-gray-700 rounded-lg p-3 text-sm terminal-font">4 x 1</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Launch Scripts / Engine Command -->
+        <div id="launch" class="glass-card p-6 space-y-4">
+            <h2 class="text-sm font-semibold tracking-wider text-gray-400 uppercase">Optimized Launch Script</h2>
+            <div class="bg-gray-950 border border-gray-800 rounded-xl p-4 terminal-font text-xs text-indigo-300 overflow-x-auto">
+                vllm serve meta-llama/Llama-3.3-70B-Instruct \<br>
+                &nbsp;&nbsp;--max-model-len 16384 \<br>
+                &nbsp;&nbsp;--tensor-parallel-size 4 \<br>
+                &nbsp;&nbsp;--gpu-memory-utilization 0.90 \<br>
+                &nbsp;&nbsp;--max-num-seqs 16 \<br>
+                &nbsp;&nbsp;--enable-prefix-caching
+            </div>
+        </div>
+
+    </div>
+</body>
+</html>
