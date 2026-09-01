@@ -52,6 +52,8 @@ func main() {
 
 	// Mevcut API rotasını dahil et
 	mux.Handle("/", httpapi.New().Handler())
+	// Ops durum rotasını ekle
+	mux.HandleFunc("/ops/status", HandleOpsStatus)
 
 	// Gelişmiş Kuyruk (Rate Limiting) ve 16/32 Sınırlarına Sahip /card Rotası
 	mux.HandleFunc("/card", engine.CardMiddleware(logger, func(w http.ResponseWriter, r *http.Request) {
