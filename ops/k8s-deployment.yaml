@@ -2,33 +2,67 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: pusula-serve
+  namespace: default
   labels:
-    app: pusula-serve
+    app: pusulainfra
+    environment: production
 spec:
-  replicas: 1
+  replicas: 2
   selector:
     matchLabels:
-      app: pusula-serve
+      app: pusulainfra
   template:
     metadata:
       labels:
-        app: pusula-serve
+        app: pusulainfra
     spec:
       containers:
-      - name: engine
-        image: pusula-infra/pusula-serve:latest
-        args: ["--addr=:8080", "--model=llama-3.1-70b", "--seqs=16"]
+      - name: pusula-serve
+        image: pusulainfra/pusula-serve:latest
+        imagePullPolicy: IfNotPresent
         ports:
         - containerPort: 8080
           name: http
+        env:
+        - name: PORT
+          value: "8080"
+        - name: LOG_LEVEL
+          value: "info"
         resources:
           limits:
             nvidia.com/gpu: "4"
+            memory: "32Gi"
+            cpu: "8"
+          requests:
+            nvidia.com/gpu: "4"
+            memory: "16Gi"
+            cpu: "4"
         readinessProbe:
           httpGet:
-            path: /readyz
+            path: /ops/status
             port: 8080
+          initialDelaySeconds: 5
+          periodSeconds: 10
         livenessProbe:
           httpGet:
-            path: /healthz
+            path: /ops/status
             port: 8080
+          initialDelaySeconds: 10
+          periodSeconds: 15
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: pusula-serve-svc
+  namespace: default
+  labels:
+    app: pusulainfra
+spec:
+  type: LoadBalancer
+  selector:
+    app: pusulainfra
+  ports:
+  - port: 80
+    targetPort: 8080
+    protocol: TCP
+    name: http
