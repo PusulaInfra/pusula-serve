@@ -1,0 +1,17 @@
+openapi: 3.0.3
+info:
+  title: PusulaInfra Serve API
+  version: 1.0.0
+paths:
+  /ops/status:
+    get:
+      summary: Sunucu ve cluster ops durumunu döner
+      responses:
+        '200':
+          description: Başarılı yanıt
+  /card:
+    get:
+      summary: Gelişmiş rate-limiting ve kuyruk korumalı card rotası
+      responses:
+        '200':
+          description: Aktif servis durumu
