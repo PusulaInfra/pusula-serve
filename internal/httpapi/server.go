@@ -1,20 +1,16 @@
 package httpapi
 
 import (
-	"embed"
 	"encoding/json"
-	"io/fs"
 	"net/http"
 
+	"github.com/PusulaInfra/pusula-serve/internal/apply"
+	"github.com/PusulaInfra/pusula-serve/internal/live"
+	"github.com/PusulaInfra/pusula-serve/internal/measure"
 	"github.com/PusulaInfra/pusula-serve/internal/serve"
 )
 
-//go:embed static/*
-var staticFS embed.FS
-
-type Server struct {
-	Static fs.FS
-}
+type Server struct{}
 
 type analyzeRequest struct {
 	Model                string  `json:"model"`
@@ -28,22 +24,22 @@ type analyzeRequest struct {
 	Engine               string  `json:"engine"`
 	Provider             string  `json:"provider"`
 	PrefixHit            float64 `json:"prefix_hit"`
+	BenchSec             int     `json:"bench_sec"`
+	ApplyMode            string  `json:"apply"`
+	Remote               bool    `json:"remote"`
+	Line                 string  `json:"line"`
 }
 
-func New() Server {
-	sub, err := fs.Sub(staticFS, "static")
-	if err != nil {
-		panic(err)
-	}
-	return Server{Static: sub}
-}
+func New() Server { return Server{} }
 
 func (s Server) Handler() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/api/health", s.health)
 	mux.HandleFunc("/api/models", s.models)
 	mux.HandleFunc("/api/analyze", s.analyze)
-	mux.Handle("/", http.FileServer(http.FS(s.Static)))
+	mux.HandleFunc("/api/measure", s.measure)
+	mux.HandleFunc("/api/live-vram", s.liveVRAM)
+	mux.HandleFunc("/api/apply", s.apply)
 	return mux
 }
 
@@ -58,17 +54,21 @@ func (s Server) models(w http.ResponseWriter, _ *http.Request) {
 	})
 }
 
-func (s Server) analyze(w http.ResponseWriter, r *http.Request) {
+func decode(w http.ResponseWriter, r *http.Request) (analyzeRequest, bool) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
-		return
+		return analyzeRequest{}, false
 	}
 	var req analyzeRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, "invalid json", http.StatusBadRequest)
-		return
+		return analyzeRequest{}, false
 	}
-	a := serve.Analyze(serve.ServingConfig{
+	return req, true
+}
+
+func cfgOf(req analyzeRequest) serve.ServingConfig {
+	return serve.ServingConfig{
 		ModelName:            req.Model,
 		MaxModelLen:          req.MaxModelLen,
 		NumGpus:              req.NumGpus,
@@ -80,8 +80,48 @@ func (s Server) analyze(w http.ResponseWriter, r *http.Request) {
 		Engine:               req.Engine,
 		Provider:             req.Provider,
 		PrefixHit:            req.PrefixHit,
-	})
-	writeJSON(w, http.StatusOK, a)
+	}
+}
+
+func (s Server) analyze(w http.ResponseWriter, r *http.Request) {
+	req, ok := decode(w, r)
+	if !ok {
+		return
+	}
+	writeJSON(w, http.StatusOK, serve.Analyze(cfgOf(req)))
+}
+
+func (s Server) measure(w http.ResponseWriter, r *http.Request) {
+	req, ok := decode(w, r)
+	if !ok {
+		return
+	}
+	writeJSON(w, http.StatusOK, measure.Run(cfgOf(req), req.BenchSec))
+}
+
+func (s Server) liveVRAM(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet && r.Method != http.MethodPost {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	writeJSON(w, http.StatusOK, live.SnapshotNow())
+}
+
+func (s Server) apply(w http.ResponseWriter, r *http.Request) {
+	req, ok := decode(w, r)
+	if !ok {
+		return
+	}
+	line := req.Line
+	if line == "" {
+		line = serve.Analyze(cfgOf(req)).EngineCommand
+	}
+	res, err := apply.Run(apply.Request{Mode: req.ApplyMode, Remote: req.Remote, Line: line})
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	writeJSON(w, http.StatusOK, res)
 }
 
 func writeJSON(w http.ResponseWriter, code int, v any) {
