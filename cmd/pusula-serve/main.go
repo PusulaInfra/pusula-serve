@@ -53,24 +53,31 @@ func main() {
 	// Mevcut API rotasını dahil et
 	mux.Handle("/", httpapi.New().Handler())
 
-	// 16 seq stands ve 32 seq pages kurallarına sahip kart işlemcisi middleware örneği
+	// Gelişmiş Kuyruk (Rate Limiting) ve 16/32 Sınırlarına Sahip /card Rotası
 	mux.HandleFunc("/card", engine.CardMiddleware(logger, func(w http.ResponseWriter, r *http.Request) {
+		// İstek geldiğinde GlobalQueue üzerinden slot kapmaya çalışıyoruz (Aşırı yük koruması)
+		if err := engine.GlobalQueue.AcquireSlot(r.Context()); err != nil {
+			http.Error(w, err.Error(), http.StatusTooManyRequests)
+			return
+		}
+		defer engine.GlobalQueue.ReleaseSlot()
+
 		processor := r.Context().Value("cardProcessor").(*engine.CardProcessor)
 		requestCtx := r.Context()
 
 		_ = processor.AddSequenceStand(requestCtx)
 		_ = processor.AddPage(requestCtx)
 
-		// Kartlar arası geçişte bağlamı temizlemek için:
-		// processor.CutContext(requestCtx)
+		// Güncel Hot-Reload konfigürasyonunu okuyoruz
+		cfg := engine.GlobalConfigManager.Get()
 
-		w.Write([]byte("pusula-serve 16 seq stands & 32 seq pages active!"))
+		w.Write([]byte(fmt.Sprintf("pusula-serve active! Model: %s, Max Seqs: %d", cfg.ModelName, cfg.MaxSeqs)))
 	}))
 
-	// Telemetri, metrik ve sağlık kontrolü rotalarını ekle (/metrics, /healthz, /readyz)
+	// Telemetri ve metrik rotalarını ekle (/metrics, /healthz, vb.)
 	engine.RegisterTelemetryRoutes(mux)
 
-	log.Printf("pusula-serve  http://localhost%s", *addr)
+	log.Printf("pusula-serve enterprise engine running on http://localhost%s", *addr)
 	if err := http.ListenAndServe(*addr, mux); err != nil {
 		log.Fatal(err)
 	}
