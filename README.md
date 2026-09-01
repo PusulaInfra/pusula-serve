@@ -18,23 +18,34 @@ LLM serving config copilot for vLLM, SGLang, KV, TP/PP.
 
 Not a VRAM toy. A serving plan.
 
-- Fit / OOM on H100, 5090, RTX Pro, Spark GB10 UMA, Mac Studio / Mini
-- GQA and MLA KV, MoE loaded vs active
-- Concurrency board 1 / 4 / 16 / 32
-- Prefix hit as a lever
-- Infer vs agent on a mixed fleet
-- P/D split call, LoRA tax, spec tax
-- Launch line for vLLM / SGLang / MLX
-- Spark stand: 256K + util 0.78
+## Estimate vs Measure
 
-Change the flag before you buy another GPU.
+Estimate is the plan. It does not touch a GPU.
 
-## Run locally
+Measure is evidence from this box, this run.
+
+`Measured on this box, this run. Not a vendor SLA.`
+
+A measured tok/s is never a PAGES guarantee. If `nvidia-smi` is missing, Measure says so. It does not invent throughput.
 
 ```bash
 go test ./...
-go run ./cmd/pusula-serve
+go run ./cmd/pusula-serve --cli --model llama-3.3-70b --gpu H100 --gpus 4 --ctx 8192 --seqs 8
+go run ./cmd/pusula-serve --measure --bench-sec 5
+go run ./cmd/pusula-serve --live-vram
+go run ./cmd/pusula-serve --apply=dry-run
+# exec only with both flags:
+go run ./cmd/pusula-serve --apply=exec --remote
 ```
+
+HTTP:
+
+- `POST /api/analyze` — estimate only (contract unchanged)
+- `POST /api/measure` — estimate + live VRAM + bench skip
+- `GET /api/live-vram`
+- `POST /api/apply` — dry-run unless `apply=exec` and `remote=true`
+
+Change the flag before you buy another GPU.
 
 ## Brand
 
