@@ -1,25 +1,40 @@
-.PHONY: build run test bench clean docker pgo-build
+.PHONY: all tidy build test run clean docker-up
 
-# Gerçek üretim profiliyle (default.pgo) en üst düzey optimize derleme
-build:
-	go build -pgo=auto -ldflags="-s -w" -o bin/pusula-serve cmd/main.go
+# Varsayılan hedef: Paketleri düzenle ve projeyi derle
+all: tidy build test
 
-# Performans verisini toplamak için benchmark çalıştırma
-profile:
-	go test -bench=TestEngineStressAndQueue -cpuprofile=cpu.prof ./engine
-	mv cpu.prof default.pgo
+# 1. Go modüllerini düzenle ve eksik bağımlılıkları indir
+tidy:
+	@echo "==> Go modülleri senkronize ediliyor..."
+	go mod tidy
 
-run:
-	go run cmd/main.go
+# 2. Projeyi derle (Build)
+build: tidy
+	@echo "==> PusulaInfra motoru derleniyor..."
+	go build -v -o pusula-serve ./cmd/pusula-serve
 
+# 3. Testleri ve motor entegrasyonunu doğrula
 test:
-	go test -v -race ./...
+	@echo "==> Testler çalıştırılıyor..."
+	go test -v ./engine/...
 
-bench:
-	go test -bench=. -benchmem ./engine
+# 4. CLI Modunda Hızlı Analiz Çalıştır (Örn: Llama-3.1 70B & 4x H100)
+run-cli: build
+	@echo "==> CLI Analiz Modu Başlatılıyor..."
+	./pusula-serve -cli -model llama-3.1-70b -gpus 4 -provider lambda
 
-docker:
-	docker build -t pusula-serve:latest .
+# 5. HTTP Servis ve Ops Sunucusunu Başlat
+run-server: build
+	@echo "==> Enterprise HTTP Sunucusu :8080 portunda ayağa kaldırılıyor..."
+	./pusula-serve -addr :8080
 
+# 6. Docker Compose ile Tüm Sistemi (Prometheus dahil) Tek Komutla Uçur
+docker-up:
+	@echo "==> Docker Compose stack ayağa kaldırılıyor..."
+	docker compose up --build -d
+
+# 7. Derleme artıklarını temizle
 clean:
-	rm -rf bin/ default.pgo
+	@echo "==> Temizlik yapılıyor..."
+	rm -f pusula-serve
+	go clean
