@@ -1,5 +1,7 @@
 {
-  "annotations": { "list": [] },
+  "annotations": {
+    "list": []
+  },
   "editable": true,
   "fiscalYearStartMonth": 0,
   "graphTooltip": 0,
@@ -13,38 +15,60 @@
       "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
       "id": 1,
       "title": "vLLM / SGLang KV Cache & VRAM Usage",
-      "type": "timeseries"
+      "type": "timeseries",
+      "targets": [
+        {
+          "expr": "pusula_vram_usage_bytes",
+          "legendFormat": "{{model}} - VRAM"
+        }
+      ]
     },
     {
       "collapsed": false,
       "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
       "id": 2,
       "title": "HBM Bandwidth & Token Throughput",
-      "type": "timeseries"
+      "type": "timeseries",
+      "targets": [
+        {
+          "expr": "pusula_token_throughput_per_sec",
+          "legendFormat": "{{gpu_model}} Throughput"
+        }
+      ]
     },
     {
       "collapsed": false,
       "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 },
       "id": 3,
       "title": "Green AI: Power Consumption (TDP) & Carbon Emission",
-      "type": "timeseries"
+      "type": "timeseries",
+      "targets": [
+        {
+          "expr": "pusula_power_consumption_watts",
+          "legendFormat": "Power (W)"
+        }
+      ]
     },
     {
       "collapsed": false,
       "gridPos": { "h": 8, "w": 12, "x": 12, "y": 8 },
       "id": 4,
       "title": "SLA Latency (TTFT & TPOT Simulation)",
-      "type": "timeseries"
+      "type": "timeseries",
+      "targets": [
+        {
+          "expr": "pusula_latency_ttft_ms",
+          "legendFormat": "TTFT (ms)"
+        }
+      ]
     }
   ],
   "refresh": "5s",
   "schemaVersion": 38,
   "style": "dark",
-  "tags": ["pusulainfra", "ai", "llm"],
+  "tags": ["pusulainfra", "ai", "llm", "enterprise"],
   "time": { "from": "now-1h", "to": "now" },
-  "timepicker": {},
   "timezone": "",
   "title": "PusulaInfra Enterprise Monitoring",
-  "version": 1,
-  "weekStart": ""
+  "version": 1
 }
