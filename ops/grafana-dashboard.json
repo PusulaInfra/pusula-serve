@@ -1,0 +1,22 @@
+{
+  "dashboard": {
+    "title": "Pusula-Serve Enterprise LLM Telemetry",
+    "panels": [
+      {
+        "title": "Active Sequence Stands (Max 16)",
+        "type": "stat",
+        "targets": [
+          { "expr": "pusula_serve_active_stands" }
+        ]
+      },
+      {
+        "title": "TTFT Milliseconds & Token Generation Speed",
+        "type": "timeseries",
+        "targets": [
+          { "expr": "pusula_serve_ttft_ms" },
+          { "expr": "pusula_serve_tokens_per_sec" }
+        ]
+      }
+    ]
+  }
+}
