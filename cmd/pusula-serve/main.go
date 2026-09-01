@@ -4,9 +4,10 @@ import (
 	"flag"
 	"fmt"
 	"log"
+	"log/slog"
 	"net/http"
 
-	"github.com/PusulaInfra/pusula-serve/engine" // Yeni eklediğimiz kurumsal motor
+	"github.com/PusulaInfra/pusula-serve/engine"
 	"github.com/PusulaInfra/pusula-serve/internal/httpapi"
 	"github.com/PusulaInfra/pusula-serve/internal/serve"
 )
@@ -46,8 +47,6 @@ func main() {
 		return
 	}
 
-	// İsteğe bağlı olarak mevcut HTTP API handler'ını engine middleware ile sarmalayabilir 
-	// veya kendi özel kart rotalarınızı buraya ekleyebilirsiniz:
 	logger := slog.Default()
 	mux := http.NewServeMux()
 
@@ -67,6 +66,9 @@ func main() {
 
 		w.Write([]byte("pusula-serve 16 seq stands & 32 seq pages active!"))
 	}))
+
+	// Telemetri, metrik ve sağlık kontrolü rotalarını ekle (/metrics, /healthz, /readyz)
+	engine.RegisterTelemetryRoutes(mux)
 
 	log.Printf("pusula-serve  http://localhost%s", *addr)
 	if err := http.ListenAndServe(*addr, mux); err != nil {
