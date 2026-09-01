@@ -1,8 +1,20 @@
-# PusulaInfra Architecture Overview
+# PusulaInfra 🧭 Mimari ve Akış Rehberi
 
-PusulaInfra, LLM servis altyapıları için donanım gereksinimlerini, bant genişliği sınırlarını (HBM-bound) ve maliyet optimizasyonunu hesaplayan yüksek performanslı bir Go motorudur.
+Bu doküman, `PusulaInfra` motorunun donanım analizi, bellek yönetimi ve operasyonel akışını görsel ve şematik olarak açıklamaktadır.
 
-## Temel Bileşenler
-- **Engine (`engine/`):** VRAM, KV Cache, TP/PP topolojisi ve maliyet hesaplamalarının yapıldığı çekirdek mantık katmanı.
-- **HTTP API (`internal/httpapi/`):** Küme durumunu ve entegrasyon uç noktalarını sunan HTTP sunucusu.
-- **CLI (`cmd/pusula-serve/`):** Komut satırı üzerinden hızlı analiz ve konfigürasyon export (JSON, YAML, Helm, Terraform) imkanı.
+---
+
+## 🔄 1. İstek ve Analiz Akış Şeması (CLI & API)
+
+Kullanıcı bir analiz başlattığında veya sunucuya istek attığında verinin izlediği yol şu şekildedir:
+
+```text
+[ Kullanıcı / CLI / Browser ]
+          │
+          ├──> 1. CLI Modu (`-cli`) ──> [ serve.Analyze() ] ──> Terminal Çıktısı (Tablo/Rapor)
+          │
+          └──> 2. HTTP Server (`:8080`) 
+                    │
+                    ├──> /ops/status ──> [ OpsStatusResponse ] (Sağlık & VRAM Durumu)
+                    ├──> /card       ──> [ GlobalQueue / Rate Limiter ] ──> Koruma & Slot Kontrolü
+                    └──> /metrics    ──> [ Telemetry Routes ] (Prometheus Metrikleri)
