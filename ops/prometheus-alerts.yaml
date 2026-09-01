@@ -1,0 +1,20 @@
+groups:
+  - name: pusula-serve-alerts
+    rules:
+      - alert: PusulaServeHighVRAM
+        expr: pusula_active_vram_gb > 75.0
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Yüksek VRAM tüketimi tespit edildi"
+          description: "GPU VRAM kullanımı %75 sınırını aştı, OOM riski olabilir."
+
+      - alert: PusulaServeDown
+        expr: up{job="pusula-serve"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "PusulaInfra servisi erişilemez durumda"
+          description: "Servis yanıt vermiyor, acil müdahale gerekiyor."
