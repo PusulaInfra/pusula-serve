@@ -1,0 +1,21 @@
+Pusula Serve
+Copyright (c) 2026 PusulaInfra
+
+This product is MIT licensed. See LICENSE.
+
+Trademarks
+----------
+NVIDIA, GeForce, H100, H200, A100, L40S, B200, and RTX are trademarks of
+NVIDIA Corporation. Llama is a trademark of Meta Platforms, Inc. Mistral and
+Mixtral are trademarks of Mistral AI. Qwen is a trademark of Alibaba.
+DeepSeek is a trademark of DeepSeek. Amazon Web Services, Google Cloud,
+Lambda, RunPod, vLLM, and SGLang are trademarks of their respective owners.
+
+PusulaInfra is not affiliated with, endorsed by, or a reseller of those
+parties. Model names and Hugging Face repository paths appear only as
+planning identifiers. You must obtain model rights from the licensor.
+
+Estimates
+---------
+VRAM, KV, cost, latency, power, and carbon figures are model-based estimates,
+not measurements, quotes, SLAs, or procurement offers.

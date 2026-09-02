@@ -1,12 +1,13 @@
-# Pusula Serve: Enterprise-Grade LLM Serving Engine in Go
+# Pusula Serve
 
-We built **Pusula Serve** because most LLM VRAM calculators are toys that ignore real-world serving constraints. When deploying 70B+ models on H100 clusters, hardware limits, memory pooling, and concurrency guards dictate whether your system survives production or hits OOM errors.
+Not a VRAM toy. A serving plan. The chip is not the bill.
 
-## Why Go?
-We chose Go to bypass Python/Ray runtime overhead. By implementing:
-- **Strict Concurrency Guards**: Hard enforcement of 16 Sequence Stands and 32 Sequence Pages.
-- **Zero-Allocation Memory Pooling**: Using `sync.Pool` to eliminate GC pressure during heavy token generation.
-- **Profile-Guided Optimization (PGO)**: Compiled with `-pgo=auto` for maximum CPU throughput.
-- **Native Observability**: Prometheus-ready metrics and Kubernetes deployment readiness out of the box.
+Default walk-through: **Llama 3.3 70B · 4× H100 · 16K context · 16 sequences**.
 
-Check out the interactive console and production manifests on [GitHub](https://github.com/PusulaInfra/pusula-serve).
+Weights, KV, TP/PP, cost, HBM decode ceiling, SLA, LoRA, MoE/MLA, fleet compare, and launch scripts (vLLM, SGLang, Kubernetes, Helm, Terraform, JSON) come from one engine. **STANDS** fits. **PAGES** OOMs. Guard: 16 sequence stands, 32 sequence pages.
+
+- Live console: https://pusulainfra.github.io/pusula-serve/
+- Source: https://github.com/PusulaInfra/pusula-serve
+- X: https://x.com/pusulainfra
+
+Estimates only — not a quote, SLA, or capacity guarantee. Not affiliated with NVIDIA, Meta, Mistral, DeepSeek, vLLM, or SGLang.

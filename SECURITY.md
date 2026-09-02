@@ -1,13 +1,19 @@
-# Güvenlik Politikası
+# Security policy
 
-PusulaInfra projesindeki güvenliği çok ciddiye alıyoruz. Eğer güvenlik açığı olabilecek bir durum fark ederseniz, lütfen halka açık bir Issue açmak yerine bizimle doğrudan iletişime geçin.
+PusulaInfra takes security issues in Pusula Serve seriously. **Do not** open a public GitHub issue for a vulnerability.
 
-## Desteklenen Sürümler
-Şu an aktif olarak desteklenen ve güvenlik güncellemeleri alan versiyon:
+## Supported versions
 
-| Sürüm | Destek Durumu |
-| ----- | ------------- |
-| v1.x  | ✅ Destekleniyor |
+| Version | Status |
+| ------- | ------ |
+| 1.x     | Supported |
 
-## Açık Bildirimi
-Güvenlik açıklarını bildirmek için doğrudan pull request açabilir veya geliştirici ekibiyle iletişime geçebilirsiniz. Bildiriminiz en kısa sürede incelenecektir.
+## Reporting
+
+Use GitHub private advisories:
+
+https://github.com/PusulaInfra/pusula-serve/security/advisories/new
+
+Include a reproduction, affected version/commit, and impact. We will acknowledge the report and work on a fix before any public disclosure.
+
+This product is a planner. It does not store cluster credentials. Still, treat launch scripts as untrusted until you review flags, model licenses, and cloud spend.

@@ -1,15 +1,27 @@
-# PusulaInfra Projesine Katkı Sağlama Rehberi
+# Contributing
 
-PusulaInfra'ya katkıda bulunmayı düşündüğünüz için teşekkür ederiz! Açık kaynak ekosistemini güçlendirmek ve kurumsal LLM altyapı standartlarını belirlemek için birlikte çalışıyoruz.
+Thanks for helping with Pusula Serve.
 
-## Geliştirme Süreci
-1. Bu repoyu **Fork** edin.
-2. Kendi branch'inizi oluşturun (`git checkout -b feature/yeni-ozellik`).
-3. Kodlarınızı yazın ve test edin (`go test ./...`).
-4. Değişikliklerinizi commit edin (`git commit -m 'feat: yeni özellik eklendi'`).
-5. Branch'inizi push edin (`git push origin feature/yeni-ozellik`).
-6. Bir **Pull Request (PR)** açın.
+## One product
 
-## Kod Standartları
-- Kodunuzun Go 1.22+ sürümleriyle uyumlu olduğundan emin olun.
-- `make all` komutunu çalıştırarak derleme ve testlerin geçtiğini doğrulayın.
+The Go CLI (`cmd/pusula-serve`), the HTTP API (`internal/httpapi`), and the GitHub Pages console (`docs/`) are the same planner. Do not add a second calculator, a second GPU table, or a second set of product links.
+
+Canonical links:
+
+- Console: https://pusulainfra.github.io/pusula-serve/
+- Source: https://github.com/PusulaInfra/pusula-serve
+- X: https://x.com/pusulainfra
+
+## Process
+
+1. Fork the repository.
+2. Create a branch (`git checkout -b feat/short-name`).
+3. Keep engine numbers honest — no fake throughput, no invented cloud quotes.
+4. Run `go test ./...` and `go build ./cmd/pusula-serve`.
+5. Open a pull request against `main`.
+
+## Code
+
+- Go 1.22+.
+- Console math in `docs/engine.js` should stay aligned with `internal/serve/analyze.go`.
+- Do not commit secrets, GPU vendor credentials, or private model weights.
