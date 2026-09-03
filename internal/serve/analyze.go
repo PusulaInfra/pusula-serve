@@ -95,6 +95,7 @@ var ModelRegistry = []ModelSpec{
 
 var GPURegistry = []GPUSpec{
 	{ID: "L40S", Name: "NVIDIA L40S 48GB", VramGB: 48, BandGBs: 864, TFLOPS16: 366},
+	{ID: "5090", Name: "NVIDIA RTX 5090 32GB", VramGB: 32, BandGBs: 1792, TFLOPS16: 210},
 	{ID: "A100", Name: "NVIDIA A100 80GB", VramGB: 80, BandGBs: 2039, TFLOPS16: 312},
 	{ID: "H100", Name: "NVIDIA H100 80GB", VramGB: 80, BandGBs: 3350, TFLOPS16: 990},
 	{ID: "H200", Name: "NVIDIA H200 141GB", VramGB: 141, BandGBs: 4800, TFLOPS16: 990},
@@ -103,6 +104,9 @@ var GPURegistry = []GPUSpec{
 
 func ResolveModel(name string) ModelSpec {
 	n := strings.ToLower(strings.TrimSpace(name))
+	if n == "llama-3.1-70b" || strings.Contains(n, "llama-3.1-70b") {
+		n = "llama-3.3-70b"
+	}
 	for _, m := range ModelRegistry {
 		if n == m.ID || n == strings.ToLower(m.HF) || n == strings.ToLower(m.Name) {
 			return m
@@ -137,6 +141,9 @@ func ResolveModel(name string) ModelSpec {
 
 func ResolveGPU(id string, fallbackVRAM float64) GPUSpec {
 	u := strings.ToUpper(strings.TrimSpace(id))
+	if u == "RTX5090" {
+		u = "5090"
+	}
 	for _, g := range GPURegistry {
 		if g.ID == u {
 			return g
@@ -201,10 +208,10 @@ func pickParallelism(numGPUs, layers int, weightsGB, kvGB, gpuGB, util float64) 
 
 func CloudRate(provider, gpu string) float64 {
 	rates := map[string]map[string]float64{
-		"lambda": {"H100": 2.49, "H200": 3.79, "A100": 1.29, "L40S": 0.79, "B200": 4.99},
-		"runpod": {"H100": 2.29, "H200": 3.49, "A100": 1.19, "L40S": 0.74, "B200": 4.49},
-		"aws":    {"H100": 4.10, "H200": 5.40, "A100": 3.67, "L40S": 1.80, "B200": 6.80},
-		"gcp":    {"H100": 3.99, "H200": 5.20, "A100": 3.50, "L40S": 1.75, "B200": 6.50},
+		"lambda": {"H100": 2.49, "H200": 3.79, "A100": 1.29, "L40S": 0.79, "B200": 4.99, "5090": 1.49},
+		"runpod": {"H100": 2.29, "H200": 3.49, "A100": 1.19, "L40S": 0.74, "B200": 4.49, "5090": 0.89},
+		"aws":    {"H100": 4.10, "H200": 5.40, "A100": 3.67, "L40S": 1.80, "B200": 6.80, "5090": 2.40},
+		"gcp":    {"H100": 3.99, "H200": 5.20, "A100": 3.50, "L40S": 1.75, "B200": 6.50, "5090": 2.30},
 	}
 	p := strings.ToLower(provider)
 	g := strings.ToUpper(gpu)
@@ -283,6 +290,11 @@ func Analyze(cfg ServingConfig) Analysis {
 	maxSeqs := maxFitSeqs(spec, cfg, gpu, weightGB, rt)
 	hourly := CloudRate(cfg.Provider, gpu.ID) * float64(cfg.NumGpus)
 	a := Analysis{Spec: spec, GPU: gpu, WeightGB: round1(weightGB), KVGB: round1(kvGB), KVPerTokenKB: round1(perTok / 1024), RuntimeGB: rt, TotalGB: round1(total), PerGPUGB: round1(perGPU), UsablePerGPU: round1(usable), TP: tp, PP: pp, OOM: oom, HeadroomGB: round1(usable - perGPU), KVShare: math.Round(kvShare*1000) / 1000, HourlyUSD: math.Round(hourly*100) / 100, MonthlyUSD: math.Round(hourly*24*30*100) / 100, MaxFitSeqs: maxSeqs, PrefixEffective: math.Round(eff*1000) / 1000}
+	activeGB := spec.ActiveB / spec.ParamsB * weightGB
+	onGPU := activeGB / float64(tp*pp)
+	if onGPU > 0 {
+		a.DecodeTokPerS = round1(gpu.BandGBs / onGPU)
+	}
 	switch {
 	case oom && maxSeqs >= 1:
 		a.Recommendation = fmt.Sprintf("OOM at max-num-seqs=%d. Same box fits about %d concurrent sequences if you cut the batch, not the model.", cfg.MaxNumSeqs, maxSeqs)
