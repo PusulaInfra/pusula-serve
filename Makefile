@@ -1,5 +1,5 @@
 # Pusula Serve — CLI, API, and Pages console are one product.
-.PHONY: all tidy build test run-cli run-server clean docker-up
+.PHONY: all tidy build test run run-cli run-server clean docker-up
 
 all: tidy build test
 
@@ -11,6 +11,8 @@ build: tidy
 
 test:
 	go test ./...
+
+run: run-cli
 
 run-cli: build
 	./pusula-serve -cli -model llama-3.3-70b -gpu H100 -gpus 4 -ctx 16384 -seqs 16 -provider lambda
