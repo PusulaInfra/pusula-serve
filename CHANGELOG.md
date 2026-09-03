@@ -2,6 +2,25 @@
 
 All notable changes to Pusula Serve are listed here.
 
+## [1.2.0] - 2026-09-03
+
+### Product
+- User Pages (`https://pusulainfra.github.io/`) and Project Pages (`https://pusulainfra.github.io/pusula-serve/`) now ship the same interactive console: old `pack()` / `paint()` math inside the glass shell.
+- Lab LED is computed from the 16/32 board (not hardcoded).
+- Default preset: Llama 3.3 70B · 4×H100 · 16K · 16. `llama-3.1-70b` remains an alias.
+- MINI32 VRAM is 32 GB. Ops paints on load and accepts Serve query strings.
+- Disclaimer / Privacy / Terms linked from the console.
+
+### Engine
+- `HandleOpsStatus` implements `GET /ops/status`.
+- CLI default model is `llama-3.3-70b`.
+- `make run` aliases `make run-cli`. `run-cli` / `run-server` remain.
+- `round` helper added so `engine/bandwith.go` compiles. The misspelled filename is kept.
+- Decode tok/s filled from HBM bandwidth / active weights on GPU.
+
+### Legal
+- Estimates are not quotes, SLAs, or capacity guarantees.
+
 ## [1.1.0] - 2026-09-02
 
 ### Product
