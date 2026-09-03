@@ -11,7 +11,8 @@
 
 One product: a Go CLI/API and a live web console that share the same serving math. Plan vLLM / SGLang deployments — weights, KV, TP/PP, cloud list-price, HBM decode ceiling, SLA, LoRA, MoE/MLA — before you buy the box.
 
-**Live console:** https://pusulainfra.github.io/pusula-serve/  
+**Live console:** https://pusulainfra.github.io/  
+**Alias (same product):** https://pusulainfra.github.io/pusula-serve/  
 **Source:** https://github.com/PusulaInfra/pusula-serve  
 **X:** https://x.com/pusulainfra
 
@@ -70,15 +71,16 @@ HTTP API + landing (same engine):
 # GET  /api/health
 ```
 
-Make targets: `make build`, `make test`, `make run-cli`.
+Make targets: `make build`, `make test`, `make run` (alias of `run-cli`), `make run-cli`, `make run-server`.
 
 ---
 
 ## Console
 
-The official installable web console is GitHub Pages:
+The official installable web console is GitHub Pages. Both URLs render the same interactive planner (`pack` / `paint` in the browser, Go `Analyze` on the CLI):
 
-**https://pusulainfra.github.io/pusula-serve/**
+- Canonical: **https://pusulainfra.github.io/**
+- Alias: **https://pusulainfra.github.io/pusula-serve/**
 
 Add it to the home screen from that origin (standalone PWA). The `docs/` folder **is** the console — not a screenshot of it.
 
@@ -97,6 +99,7 @@ Add it to the home screen from that origin (standalone PWA). The `docs/` folder 
 
 | | |
 | --- | --- |
-| Console | https://pusulainfra.github.io/pusula-serve/ |
+| Console | https://pusulainfra.github.io/ |
+| Console alias | https://pusulainfra.github.io/pusula-serve/ |
 | GitHub | https://github.com/PusulaInfra/pusula-serve |
 | X | https://x.com/pusulainfra |
