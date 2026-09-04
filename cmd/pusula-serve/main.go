@@ -15,7 +15,9 @@ import (
 )
 
 func main() {
-	fs := flag.NewFlagSet("pusula-serve", flag.ExitOnError)
+	fs := flag.NewFlagSet("pusula-serve", flag.ContinueOnError)
+	fs.SetOutput(os.Stderr)
+	fs.Usage = func() { printHelp(fs) }
 	addr := fs.String("addr", ":8080", "HTTP listen address")
 	cli := fs.Bool("cli", false, "deprecated: same as plan")
 	jsonOut := fs.Bool("json", false, "print plan as JSON")
@@ -30,23 +32,32 @@ func main() {
 
 	args := os.Args[1:]
 	cmd := "serve"
+	if len(args) > 0 && (args[0] == "help" || args[0] == "-h" || args[0] == "--help") {
+		printHelp(fs)
+		os.Exit(0)
+	}
 	if len(args) > 0 && !isFlag(args[0]) {
 		cmd = args[0]
 		args = args[1:]
 	}
-	_ = fs.Parse(args)
+	if err := fs.Parse(args); err != nil {
+		if err == flag.ErrHelp {
+			os.Exit(0)
+		}
+		os.Exit(1)
+	}
+
+	// Deprecated -cli always means plan, even with no subcommand.
+	if *cli && cmd != "plan" && cmd != "cli" {
+		cmd = "plan"
+	}
 
 	switch cmd {
 	case "plan", "cli":
 		os.Exit(runPlan(*model, *ctx, *gpus, *seqs, *gpu, *dtype, *engineType, *provider, *jsonOut))
 	case "serve", "server":
 		runServer(*addr)
-	case "help", "-h", "--help":
-		printHelp(fs)
 	default:
-		if *cli {
-			os.Exit(runPlan(*model, *ctx, *gpus, *seqs, *gpu, *dtype, *engineType, *provider, *jsonOut))
-		}
 		fmt.Fprintf(os.Stderr, "unknown command: %s\n\n", cmd)
 		printHelp(fs)
 		os.Exit(1)
@@ -71,30 +82,28 @@ func runPlan(model string, ctx, gpus, seqs int, gpu string, dtype int, engineTyp
 
 	if jsonOut {
 		_ = json.NewEncoder(os.Stdout).Encode(a)
-	} else {
-		decision := "STANDS"
-		code := 0
 		if a.OOM {
-			decision = "PAGES"
-			code = 2
+			return 2
 		}
-		fmt.Printf("decision  %s\n", decision)
-		fmt.Printf("model     %s (%s)\n", a.Spec.Name, a.Spec.HF)
-		fmt.Printf("weights   %.1f GB\n", a.WeightGB)
-		fmt.Printf("kv        %.1f GB\n", a.KVGB)
-		fmt.Printf("per-gpu   %.1f / %.1f GB usable\n", a.PerGPUGB, a.UsablePerGPU)
-		fmt.Printf("topology  TP=%d PP=%d  oom=%v\n", a.TP, a.PP, a.OOM)
-		fmt.Printf("decode    %.0f tok/s HBM ceiling\n", a.DecodeTokPerS)
-		fmt.Printf("cost      $%.2f/hr  ~$%.0f/mo  (%s %s x%d)\n", a.HourlyUSD, a.MonthlyUSD, provider, a.GPU.ID, gpus)
-		fmt.Printf("note      %s\n\n", a.Recommendation)
-		fmt.Println(a.EngineCommand)
-		fmt.Println("disclaimer  Estimates only. Not a quote, SLA, or capacity guarantee.")
-		return code
+		return 0
 	}
+
+	decision := "STANDS"
+	code := 0
 	if a.OOM {
-		return 2
+		decision = "PAGES"
+		code = 2
 	}
-	return 0
+	fmt.Printf("decision  %s\n", decision)
+	fmt.Printf("model     %s (%s)\n", a.Spec.Name, a.Spec.HF)
+	fmt.Printf("weights   %.1f GB\n", a.WeightGB)
+	fmt.Printf("kv        %.1f GB\n", a.KVGB)
+	fmt.Printf("per-gpu   %.1f / %.1f GB usable\n", a.PerGPUGB, a.UsablePerGPU)
+	fmt.Printf("topology  TP=%d PP=%d  oom=%v\n", a.TP, a.PP, a.OOM)
+	fmt.Printf("note      %s\n\n", a.Recommendation)
+	fmt.Println(a.EngineCommand)
+	fmt.Println("disclaimer  Estimates only. Not a quote, SLA, or capacity guarantee.")
+	return code
 }
 
 func runServer(addr string) {
@@ -142,11 +151,14 @@ func HandleOpsStatus(w http.ResponseWriter, _ *http.Request) {
 }
 
 func printHelp(fs *flag.FlagSet) {
-	fmt.Fprintln(os.Stderr, "pusula-serve — serving plan, not a bill")
+	fmt.Fprintln(os.Stderr, "pusula-serve — generates a serving plan. Not a bill or SLA.")
 	fmt.Fprintln(os.Stderr, "")
 	fmt.Fprintln(os.Stderr, "Usage:")
 	fmt.Fprintln(os.Stderr, "  pusula-serve plan [flags]")
 	fmt.Fprintln(os.Stderr, "  pusula-serve serve [flags]")
+	fmt.Fprintln(os.Stderr, "  pusula-serve            (same as serve, HTTP :8080)")
+	fmt.Fprintln(os.Stderr, "")
+	fmt.Fprintln(os.Stderr, "Exit codes: 0 fits (STANDS), 2 OOM (PAGES), 1 user error")
 	fmt.Fprintln(os.Stderr, "")
 	fmt.Fprintln(os.Stderr, "Examples:")
 	fmt.Fprintln(os.Stderr, "  pusula-serve plan --model llama-3.3-70b --gpu H100 --gpus 4 --ctx 16384 --seqs 16")
