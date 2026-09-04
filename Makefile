@@ -15,10 +15,10 @@ test:
 run: run-cli
 
 run-cli: build
-	./pusula-serve -cli -model llama-3.3-70b -gpu H100 -gpus 4 -ctx 16384 -seqs 16 -provider lambda
+	./pusula-serve plan --model llama-3.3-70b --gpu H100 --gpus 4 --ctx 16384 --seqs 16
 
 run-server: build
-	./pusula-serve -addr :8080
+	./pusula-serve serve --addr :8080
 
 docker-up:
 	docker compose up --build -d
