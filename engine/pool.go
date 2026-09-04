@@ -11,7 +11,7 @@ type TokenBufferPool struct {
 
 var GlobalTokenPool = &TokenBufferPool{
 	pool: sync.Pool{
-		New: func() interface{5} {
+		New: func() any {
 			// Her defasında bellek ayırmak yerine 512 baytlık yeniden kullanılabilir buffer
 			buf := make([]byte, 0, 512)
 			return &buf
